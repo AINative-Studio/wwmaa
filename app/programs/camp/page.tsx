@@ -84,9 +84,9 @@ export default function CampPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-white">
+      <section className="py-16 bg-white">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="mb-16">
+          <div className="mb-12">
             <h2 className="font-display text-4xl font-bold text-dojo-navy mb-6 text-center">
               About the Camp
             </h2>
@@ -103,7 +103,7 @@ export default function CampPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 mb-16">
+          <div className="grid md:grid-cols-2 gap-8">
             <div className="bg-gradient-to-br from-dojo-navy/5 to-dojo-navy/10 rounded-xl p-8">
               <Calendar className="w-12 h-12 text-dojo-navy mb-4" />
               <h3 className="font-display text-2xl font-bold text-dojo-navy mb-3">Duration</h3>
@@ -139,7 +139,7 @@ export default function CampPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-gradient-to-b from-white to-gray-50">
+      <section className="py-16 bg-gradient-to-b from-white to-gray-50">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-12">
             <h2 className="font-display text-4xl font-bold text-dojo-navy mb-4">
