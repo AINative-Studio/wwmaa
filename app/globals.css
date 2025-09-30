@@ -1,0 +1,84 @@
+:root {
+  --dojo-light:  #E1DFF2;
+  --dojo-navy:   #023E73;
+  --dojo-green:  #025951;
+  --dojo-orange: #F25D07;
+  --dojo-red:    #F2220F;
+
+  --bg:          #FAFBFC;
+  --fg:          #0B1220;
+  --card:        #FFFFFF;
+  --muted:       #F5F6F8;
+  --border:      #E5E7EB;
+  --ring:        var(--dojo-navy);
+  --primary:     var(--dojo-navy);
+  --primary-fg:  #FFFFFF;
+  --accent:      var(--dojo-orange);
+  --success:     var(--dojo-green);
+  --danger:      var(--dojo-red);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #0D1420;
+    --fg:        #E9EDF5;
+    --muted:     #1A2332;
+    --card:      #151F2E;
+    --border:    #2A3441;
+    --primary:   #0558A8;
+    --primary-fg:#FFFFFF;
+  }
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+  }
+
+  body {
+    @apply bg-bg text-fg;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
+
+@layer utilities {
+  .gradient-navy {
+    background: linear-gradient(135deg, #023E73 0%, #0558A8 100%);
+  }
+
+  .gradient-green {
+    background: linear-gradient(135deg, #025951 0%, #047368 100%);
+  }
+
+  .gradient-orange {
+    background: linear-gradient(135deg, #F25D07 0%, #FF7B2F 100%);
+  }
+
+  .gradient-hero {
+    background: linear-gradient(135deg, #023E73 0%, #025951 50%, #0558A8 100%);
+  }
+
+  .gradient-accent {
+    background: linear-gradient(135deg, rgba(2, 62, 115, 0.05) 0%, rgba(2, 89, 81, 0.05) 100%);
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 30px rgba(2, 62, 115, 0.15), 0 10px 40px rgba(0, 0, 0, 0.1);
+  }
+
+  .shadow-hover {
+    transition: all 0.3s ease;
+  }
+
+  .shadow-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(2, 62, 115, 0.2);
+  }
+}
