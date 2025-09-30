@@ -1,20 +1,30 @@
 export default function FounderPage() {
   return (
     <div className="min-h-screen">
-      <section className="gradient-hero py-24">
-        <div className="mx-auto max-w-7xl px-6">
+      <section className="relative py-24 overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-dojo-navy/95 via-dojo-navy/90 to-dojo-green/95 z-10"></div>
+          <img
+            src="/images/founder/founder-hero.jpg"
+            alt="O-Sensei Philip S. Porter"
+            className="w-full h-full object-cover object-center"
+          />
+        </div>
+        <div className="relative z-20 mx-auto max-w-7xl px-6">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm mb-6 border-4 border-white/20">
-              <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
+            <div className="inline-block mb-6">
+              <img
+                src="/images/founder/founder-hero.jpg"
+                alt="O-Sensei Philip S. Porter"
+                className="w-48 h-48 rounded-full object-cover border-8 border-white/20 shadow-2xl"
+              />
             </div>
           </div>
           <h1 className="font-display text-5xl sm:text-6xl font-bold text-white text-center">
             O-Sensei Philip S. Porter
           </h1>
           <p className="mt-6 text-2xl text-white/90 max-w-3xl mx-auto text-center leading-relaxed">
-            Our Founder
+            Our Founder - "The Father of American Judo"
           </p>
           <p className="mt-4 text-xl text-white/80 max-w-2xl mx-auto text-center">
             November 17, 1924 – August 7, 2011
