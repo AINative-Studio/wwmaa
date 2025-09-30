@@ -1,41 +1,96 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "O-Sensei Philip S. Porter | Father of American Judo | WWMAA Founder",
+  description: "Learn about O-Sensei Philip S. Porter, 10th Dan Judo Master and founder of WWMAA. Discover the legacy of the Father of American Judo.",
+  openGraph: {
+    title: "O-Sensei Philip S. Porter | Father of American Judo | WWMAA Founder",
+    description: "Learn about O-Sensei Philip S. Porter, 10th Dan Judo Master and founder of WWMAA. Discover the legacy of the Father of American Judo.",
+    type: "profile",
+    url: "https://wwmaa.ainative.studio/founder",
+    images: [
+      {
+        url: "https://wwmaa.ainative.studio/images/founder/founder-hero.jpg",
+        width: 1200,
+        height: 630,
+        alt: "O-Sensei Philip S. Porter",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "O-Sensei Philip S. Porter | Father of American Judo | WWMAA Founder",
+    description: "Learn about O-Sensei Philip S. Porter, 10th Dan Judo Master and founder of WWMAA. Discover the legacy of the Father of American Judo.",
+  },
+};
+
 export default function FounderPage() {
+  const personSchema = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Philip S. Porter",
+    "honorificPrefix": "O-Sensei",
+    "jobTitle": "Founder & Grandmaster",
+    "birthDate": "1924-11-17",
+    "deathDate": "2011-08-07",
+    "description": "10th Dan Judo Master known as the Father of American Judo",
+    "alumniOf": {
+      "@type": "EducationalOrganization",
+      "name": "United States Military Academy at West Point"
+    },
+    "award": [
+      "World Martial Arts Hall of Fame Heritage Award",
+      "International Karate Hall of Fame Inductee",
+      "US National Masters Champion (4x)"
+    ],
+    "knowsAbout": ["Judo", "Jiu-Jitsu", "Karate", "Martial Arts Education"],
+    "memberOf": {
+      "@type": "SportsOrganization",
+      "name": "WWMAA"
+    }
+  };
+
   return (
-    <div className="min-h-screen">
-      <section className="relative py-24 overflow-hidden bg-gray-50">
+    <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
+      <header className="relative py-24 overflow-hidden bg-gray-50">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-white/70 z-10"></div>
           <img
             src="/images/founder/founder-hero.jpg"
-            alt="O-Sensei Philip S. Porter"
+            alt="O-Sensei Philip S. Porter, 10th Dan Judo Master and Father of American Judo, founder of WWMAA"
             className="w-full h-full object-cover object-center opacity-30"
           />
         </div>
         <div className="relative z-20 mx-auto max-w-7xl px-6">
           <div className="text-center mb-8">
-            <div className="inline-block mb-6">
+            <figure className="inline-block mb-6">
               <img
                 src="/images/founder/founder-hero.jpg"
-                alt="O-Sensei Philip S. Porter"
+                alt="Portrait of O-Sensei Philip S. Porter, 10th degree black belt judo grandmaster and WWMAA founder"
                 className="w-48 h-48 rounded-full object-cover border-8 border-dojo-navy/20 shadow-2xl"
               />
-            </div>
+            </figure>
           </div>
           <h1 className="font-display text-5xl sm:text-6xl font-bold text-dojo-navy text-center">
             O-Sensei Philip S. Porter
           </h1>
           <p className="mt-6 text-2xl text-gray-700 max-w-3xl mx-auto text-center leading-relaxed">
-            Our Founder - "The Father of American Judo"
+            Father of American Judo - 10th Dan Judo Master
           </p>
           <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto text-center">
-            November 17, 1924 – August 7, 2011
+            <time dateTime="1924-11-17">November 17, 1924</time> – <time dateTime="2011-08-07">August 7, 2011</time>
           </p>
         </div>
-      </section>
+      </header>
 
-      <section className="py-16 bg-gradient-to-b from-dojo-navy/5 to-white">
+      <article className="py-16 bg-gradient-to-b from-dojo-navy/5 to-white">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="bg-white rounded-2xl shadow-2xl p-12 border-t-4 border-dojo-orange">
-            <h2 className="font-display text-3xl font-bold text-dojo-navy mb-6 text-center">In Memoriam</h2>
+          <section className="bg-white rounded-2xl shadow-2xl p-12 border-t-4 border-dojo-orange" aria-labelledby="memoriam-heading">
+            <h2 id="memoriam-heading" className="font-display text-3xl font-bold text-dojo-navy mb-6 text-center">In Memoriam</h2>
             <div className="space-y-4 text-lg text-gray-700 leading-relaxed">
               <p>
                 Our founder, Philip S. Porter, passed away on August 7th, 2011 of cancer. O-Sensei Porter is considered by many "The Father of American Judo". O-Sensei founded the USMA, helped found the USJA, served as a Chairman of the AAU Judo Committee, Chairman of the U.S. Olympic Judo Committee, Secretary General of the Pan American Judo Union, and produced more than 1,000 national and international medalists in Judo over the past 50 years, 500 of them during the eight years he coached the National Judo Team.
@@ -47,13 +102,13 @@ export default function FounderPage() {
                 Phil will be greatly missed by his family and friends, and his legacy to the American Martial Arts will never disappear.
               </p>
             </div>
-          </div>
+          </section>
         </div>
-      </section>
+      </article>
 
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white" aria-labelledby="career-heading">
         <div className="mx-auto max-w-5xl px-6">
-          <h2 className="font-display text-4xl font-bold text-dojo-navy mb-8">A Legendary Career</h2>
+          <h2 id="career-heading" className="font-display text-4xl font-bold text-dojo-navy mb-8">A Legendary Martial Arts Career</h2>
           <div className="space-y-6 text-lg text-gray-700 leading-relaxed">
             <p>
               It is safe to say that there is no other person alive in the world today who has had so varied and comprehensive a career of achievement in Judo and the Martial Arts as Philip S. Porter. In every field of endeavor involved in Judo; from coaching, teaching and national and international leadership positions to writing, refereeing and building the theoretical framework of Judo, he has excelled. His competitive career spanned 50 years, culminating with four US National Masters Gold medals in winning which he never lost a match.
@@ -395,6 +450,6 @@ export default function FounderPage() {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

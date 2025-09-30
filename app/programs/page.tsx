@@ -1,4 +1,29 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Martial Arts Programs & Training | Tournaments, Camps & Certifications | WWMAA",
+  description: "Explore our martial arts programs: tournaments, summer camps, belt promotions, and instructor certifications. Train with the best!",
+  openGraph: {
+    title: "Martial Arts Programs & Training | Tournaments, Camps & Certifications | WWMAA",
+    description: "Explore our martial arts programs: tournaments, summer camps, belt promotions, and instructor certifications. Train with the best!",
+    type: "website",
+    url: "https://wwmaa.ainative.studio/programs",
+    images: [
+      {
+        url: "https://wwmaa.ainative.studio/images/logo.png",
+        width: 1200,
+        height: 630,
+        alt: "WWMAA Programs",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Martial Arts Programs & Training | Tournaments, Camps & Certifications | WWMAA",
+    description: "Explore our martial arts programs: tournaments, summer camps, belt promotions, and instructor certifications. Train with the best!",
+  },
+};
 
 const programs = [
   { slug:"karate", title:"Karate", desc:"The way of the empty hand — discipline, strength, and tradition.", color: "from-dojo-navy to-dojo-green" },
@@ -8,8 +33,39 @@ const programs = [
 ];
 
 export default function ProgramsPage() {
+  // Create comprehensive Course schemas for each martial arts program
+  const courseSchemas = programs.map((program) => ({
+    "@context": "https://schema.org",
+    "@type": "Course",
+    "name": `WWMAA ${program.title} Training Program`,
+    "description": program.desc,
+    "provider": {
+      "@type": "SportsOrganization",
+      "name": "World Wide Martial Arts Association",
+      "url": "https://wwmaa.ainative.studio"
+    },
+    "hasCourseInstance": {
+      "@type": "CourseInstance",
+      "courseMode": "Blended",
+      "courseWorkload": "PT",
+      "instructor": {
+        "@type": "Person",
+        "name": "WWMAA Certified Instructors"
+      }
+    },
+    "educationalCredentialAwarded": "Belt Rank Advancement",
+    "about": {
+      "@type": "Thing",
+      "name": program.title
+    }
+  }));
+
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchemas) }}
+      />
       <section className="gradient-hero py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center">

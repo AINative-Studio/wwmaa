@@ -1,0 +1,12 @@
+# WWMAA Robots.txt - SEO Optimization
+User-agent: *
+Allow: /
+
+# Disallow private and sensitive areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /checkout/
+
+# Sitemap location
+Sitemap: https://wwmaa.ainative.studio/sitemap.xml

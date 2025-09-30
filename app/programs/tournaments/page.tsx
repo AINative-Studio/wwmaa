@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Trophy, Medal, Award, Calendar } from "lucide-react";
 
 const tournaments2024 = [
@@ -52,6 +52,20 @@ const results2023 = [
 
 export default function TournamentsPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Set page title and description
+    document.title = "Martial Arts Tournaments & Competitions | WWMAA Events";
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute("content", "Compete in WWMAA-sanctioned martial arts tournaments. National and international events for all belt ranks.");
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'description';
+      meta.content = 'Compete in WWMAA-sanctioned martial arts tournaments. National and international events for all belt ranks.';
+      document.head.appendChild(meta);
+    }
+  }, []);
 
   const getMedalColor = (medal: string) => {
     switch(medal) {

@@ -9,10 +9,51 @@ export const metadata = {
   description: "Tradition, discipline, and community in the modern age.",
 };
 
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "SportsOrganization",
+  "name": "World Wide Martial Arts Association",
+  "alternateName": "WWMAA",
+  "url": "https://wwmaa.ainative.studio",
+  "logo": "https://wwmaa.ainative.studio/images/logo.png",
+  "foundingDate": "1995",
+  "founder": {
+    "@type": "Person",
+    "name": "Philip S. Porter",
+    "honorificPrefix": "O-Sensei",
+    "jobTitle": "Founder",
+    "description": "10th Dan Judo Master, Father of American Judo"
+  },
+  "sport": ["Judo", "Karate", "Jiu-Jitsu", "Martial Arts"],
+  "memberOf": {
+    "@type": "SportsOrganization",
+    "name": "International Judo Federation"
+  },
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "Membership Services",
+    "email": "info@wwmaa.com",
+    "availableLanguage": ["English"]
+  },
+  "sameAs": [
+    "https://facebook.com/wwmaa",
+    "https://twitter.com/wwmaa",
+    "https://instagram.com/wwmaa"
+  ],
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "US"
+  }
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-bg text-fg">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         <AuthProvider>
           <div className="flex min-h-screen flex-col">
             <Nav />
