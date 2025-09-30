@@ -6,33 +6,63 @@ import { Calendar, Users, Award, Clock } from "lucide-react";
 const galleryImages = [
   {
     id: 1,
-    url: "https://images.pexels.com/photos/7988754/pexels-photo-7988754.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Martial arts training session"
+    url: "/images/camp/camp-1.jpg",
+    alt: "WWMAA Summer Camp - Training session"
   },
   {
     id: 2,
-    url: "https://images.pexels.com/photos/7988766/pexels-photo-7988766.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Students practicing forms"
+    url: "/images/camp/camp-2.jpg",
+    alt: "WWMAA Summer Camp - Students practicing"
   },
   {
     id: 3,
-    url: "https://images.pexels.com/photos/7045702/pexels-photo-7045702.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Group training"
+    url: "/images/camp/camp-3.jpg",
+    alt: "WWMAA Summer Camp - Group activities"
   },
   {
     id: 4,
-    url: "https://images.pexels.com/photos/7045389/pexels-photo-7045389.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Instructor demonstration"
+    url: "/images/camp/camp-4.jpg",
+    alt: "WWMAA Summer Camp - Instructor demonstration"
   },
   {
     id: 5,
-    url: "https://images.pexels.com/photos/7045865/pexels-photo-7045865.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Belt ceremony"
+    url: "/images/camp/camp-5.jpg",
+    alt: "WWMAA Summer Camp - Techniques practice"
   },
   {
     id: 6,
-    url: "https://images.pexels.com/photos/7045697/pexels-photo-7045697.jpeg?auto=compress&cs=tinysrgb&w=800",
-    alt: "Camp activities"
+    url: "/images/camp/camp-6.jpg",
+    alt: "WWMAA Summer Camp - Camp participants"
+  },
+  {
+    id: 7,
+    url: "/images/camp/camp-7.jpg",
+    alt: "WWMAA Summer Camp - Training drills"
+  },
+  {
+    id: 8,
+    url: "/images/camp/camp-8.jpg",
+    alt: "WWMAA Summer Camp - Camp activities"
+  },
+  {
+    id: 9,
+    url: "/images/camp/camp-9.jpg",
+    alt: "WWMAA Summer Camp - Group photo"
+  },
+  {
+    id: 10,
+    url: "/images/camp/camp-10.jpg",
+    alt: "WWMAA Summer Camp - Training session"
+  },
+  {
+    id: 11,
+    url: "/images/camp/camp-11.jpg",
+    alt: "WWMAA Summer Camp - Martial arts practice"
+  },
+  {
+    id: 12,
+    url: "/images/camp/camp-12.jpg",
+    alt: "WWMAA Summer Camp - Camp memories"
   }
 ];
 
@@ -120,32 +150,6 @@ export default function CampPage() {
             </p>
           </div>
 
-          {/* Google Photos Album Embed */}
-          <div className="mb-16">
-            <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-white" style={{ paddingBottom: '75%' }}>
-              <iframe
-                src="https://photos.google.com/share/AF1QipNxryr6f_JMh1TwokLSW5tR7JQt1E-12OkYf1heEhbuP8Qgkz3EIwyuy3eOpBmhLw?key=UkltNkpDaUNSaE5mZVVVOC01amYtdXJaNFRyZ3Vn&hl=en"
-                className="absolute top-0 left-0 w-full h-full border-0"
-                allow="autoplay"
-                title="WWMAA Summer Camp Photo Album"
-              />
-            </div>
-            <div className="text-center mt-6">
-              <a
-                href="https://photos.google.com/share/AF1QipNxryr6f_JMh1TwokLSW5tR7JQt1E-12OkYf1heEhbuP8Qgkz3EIwyuy3eOpBmhLw?key=UkltNkpDaUNSaE5mZVVVOC01amYtdXJaNFRyZ3Vn"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-dojo-navy hover:text-dojo-green font-semibold transition-colors"
-              >
-                View Full Album on Google Photos
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            </div>
-          </div>
-
-          {/* Sample Gallery Images */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {galleryImages.map((image) => (
               <div

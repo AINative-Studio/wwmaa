@@ -1,0 +1,7 @@
+# Camp Images Directory
+
+To add camp photos:
+1. Go to: https://photos.google.com/share/AF1QipNxryr6f_JMh1TwokLSW5tR7JQt1E-12OkYf1heEhbuP8Qgkz3EIwyuy3eOpBmhLw?key=UkltNkpDaUNSaE5mZVVVOC01amYtdXJaNFRyZ3Vn
+2. Download the photos you want to display
+3. Save them in this directory as: camp-1.jpg, camp-2.jpg, etc.
+4. Update the galleryImages array in app/programs/camp/page.tsx
