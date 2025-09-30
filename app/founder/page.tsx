@@ -3,11 +3,11 @@ export default function FounderPage() {
     <div className="min-h-screen">
       <section className="relative py-24 overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-dojo-navy/95 via-dojo-navy/90 to-dojo-green/95 z-10"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-dojo-navy/60 via-dojo-navy/50 to-dojo-green/60 z-10"></div>
           <img
             src="/images/founder/founder-hero.jpg"
             alt="O-Sensei Philip S. Porter"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover object-center brightness-110"
           />
         </div>
         <div className="relative z-20 mx-auto max-w-7xl px-6">
