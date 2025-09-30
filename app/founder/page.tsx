@@ -1,13 +1,13 @@
 export default function FounderPage() {
   return (
     <div className="min-h-screen">
-      <section className="relative py-24 overflow-hidden">
+      <section className="relative py-24 overflow-hidden bg-gray-50">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-dojo-navy/60 via-dojo-navy/50 to-dojo-green/60 z-10"></div>
+          <div className="absolute inset-0 bg-white/70 z-10"></div>
           <img
             src="/images/founder/founder-hero.jpg"
             alt="O-Sensei Philip S. Porter"
-            className="w-full h-full object-cover object-center brightness-110"
+            className="w-full h-full object-cover object-center opacity-30"
           />
         </div>
         <div className="relative z-20 mx-auto max-w-7xl px-6">
@@ -16,17 +16,17 @@ export default function FounderPage() {
               <img
                 src="/images/founder/founder-hero.jpg"
                 alt="O-Sensei Philip S. Porter"
-                className="w-48 h-48 rounded-full object-cover border-8 border-white/20 shadow-2xl"
+                className="w-48 h-48 rounded-full object-cover border-8 border-dojo-navy/20 shadow-2xl"
               />
             </div>
           </div>
-          <h1 className="font-display text-5xl sm:text-6xl font-bold text-white text-center">
+          <h1 className="font-display text-5xl sm:text-6xl font-bold text-dojo-navy text-center">
             O-Sensei Philip S. Porter
           </h1>
-          <p className="mt-6 text-2xl text-white/90 max-w-3xl mx-auto text-center leading-relaxed">
+          <p className="mt-6 text-2xl text-gray-700 max-w-3xl mx-auto text-center leading-relaxed">
             Our Founder - "The Father of American Judo"
           </p>
-          <p className="mt-4 text-xl text-white/80 max-w-2xl mx-auto text-center">
+          <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto text-center">
             November 17, 1924 – August 7, 2011
           </p>
         </div>
