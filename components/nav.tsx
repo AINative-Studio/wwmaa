@@ -1,11 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 
 export function Nav() {
   const [isProgramsOpen, setIsProgramsOpen] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setIsProgramsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsProgramsOpen(false);
+    }, 150);
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-border shadow-sm">
@@ -18,8 +32,8 @@ export function Nav() {
 
           <div
             className="relative"
-            onMouseEnter={() => setIsProgramsOpen(true)}
-            onMouseLeave={() => setIsProgramsOpen(false)}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
             <button className="flex items-center gap-1 text-gray-600 hover:text-dojo-navy transition-colors">
               Programs
@@ -27,31 +41,33 @@ export function Nav() {
             </button>
 
             {isProgramsOpen && (
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-border py-2">
-                <Link
-                  href="/programs"
-                  className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
-                >
-                  All Programs
-                </Link>
-                <Link
-                  href="/programs/camp"
-                  className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
-                >
-                  Summer Camp
-                </Link>
-                <Link
-                  href="/programs/tournaments"
-                  className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
-                >
-                  Tournaments
-                </Link>
-                <Link
-                  href="/programs/promotions"
-                  className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
-                >
-                  Promotions & Rank
-                </Link>
+              <div className="absolute top-full left-0 pt-2">
+                <div className="w-48 bg-white rounded-lg shadow-lg border border-border py-2">
+                  <Link
+                    href="/programs"
+                    className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
+                  >
+                    All Programs
+                  </Link>
+                  <Link
+                    href="/programs/camp"
+                    className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
+                  >
+                    Summer Camp
+                  </Link>
+                  <Link
+                    href="/programs/tournaments"
+                    className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
+                  >
+                    Tournaments
+                  </Link>
+                  <Link
+                    href="/programs/promotions"
+                    className="block px-4 py-2 text-gray-600 hover:bg-gray-50 hover:text-dojo-navy transition-colors"
+                  >
+                    Promotions & Rank
+                  </Link>
+                </div>
               </div>
             )}
           </div>
