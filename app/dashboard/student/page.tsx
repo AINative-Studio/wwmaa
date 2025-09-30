@@ -34,7 +34,7 @@ import {
 
 type NavSection = 'overview' | 'profile' | 'events' | 'payments' | 'resources';
 type EventTab = 'upcoming' | 'past' | 'all';
-type EventFilter = 'all' | 'tournaments' | 'seminars' | 'camps';
+type EventFilter = 'all' | 'tournament' | 'seminar' | 'camp';
 
 interface Event {
   id: string;
@@ -713,7 +713,7 @@ export default function StudentDashboard() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Filter className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-muted-foreground">Filter by:</span>
-                    {(['all', 'tournaments', 'seminars', 'camps'] as EventFilter[]).map((filter) => (
+                    {(['all', 'tournament', 'seminar', 'camp'] as EventFilter[]).map((filter) => (
                       <button
                         key={filter}
                         onClick={() => setEventFilter(filter)}
@@ -723,7 +723,7 @@ export default function StudentDashboard() {
                             : 'bg-card border border-border hover:bg-muted'
                         }`}
                       >
-                        {filter}
+                        {filter}s
                       </button>
                     ))}
                   </div>
