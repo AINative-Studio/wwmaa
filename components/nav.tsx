@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useState, useRef } from "react";
 import { ChevronDown } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { UserMenu } from "@/components/user-menu";
+import { Button } from "@/components/ui/button";
 
 export function Nav() {
   const [isProgramsOpen, setIsProgramsOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { user, isAuthenticated } = useAuth();
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -19,6 +23,19 @@ export function Nav() {
     timeoutRef.current = setTimeout(() => {
       setIsProgramsOpen(false);
     }, 150);
+  };
+
+  const getDashboardPath = () => {
+    if (!user) return "/dashboard";
+    switch (user.role) {
+      case "admin":
+        return "/admin";
+      case "instructor":
+        return "/instructor/dashboard";
+      case "student":
+      default:
+        return "/dashboard";
+    }
   };
 
   return (
@@ -75,7 +92,28 @@ export function Nav() {
           <Link href="/events" className="text-gray-600 hover:text-dojo-navy transition-colors">Events</Link>
           <Link href="/founder" className="text-gray-600 hover:text-dojo-navy transition-colors">Founder</Link>
           <Link href="/resources" className="text-gray-600 hover:text-dojo-navy transition-colors">Resources</Link>
+
+          {isAuthenticated && (
+            <Link href={getDashboardPath()} className="text-gray-600 hover:text-dojo-navy transition-colors">
+              Dashboard
+            </Link>
+          )}
         </nav>
+
+        <div className="flex items-center gap-3">
+          {isAuthenticated ? (
+            <UserMenu />
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm" className="bg-gradient-to-r from-dojo-navy to-dojo-green hover:opacity-90">
+                <Link href="/register">Register</Link>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
