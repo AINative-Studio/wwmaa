@@ -108,8 +108,8 @@ export function Nav() {
               <Button asChild variant="ghost" size="sm">
                 <Link href="/login">Login</Link>
               </Button>
-              <Button asChild size="sm" className="bg-gradient-to-r from-dojo-navy to-dojo-green hover:opacity-90">
-                <Link href="/register">Register</Link>
+              <Button asChild size="sm" className="bg-gradient-to-r from-dojo-navy to-dojo-green hover:opacity-90 text-white">
+                <Link href="/membership">Join Now</Link>
               </Button>
             </>
           )}

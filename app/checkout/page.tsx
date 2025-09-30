@@ -144,6 +144,14 @@ export default function CheckoutPage() {
     setShowSuccess(true);
   };
 
+  // Determine dashboard redirect based on tier
+  const getDashboardUrl = () => {
+    if (tierParam === 'instructor') {
+      return '/instructor/dashboard';
+    }
+    return '/dashboard'; // basic and premium go to student dashboard
+  };
+
   if (showSuccess) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-bg to-white flex items-center justify-center px-6 py-12">
@@ -178,7 +186,7 @@ export default function CheckoutPage() {
               </div>
             </div>
             <a
-              href="/dashboard"
+              href={getDashboardUrl()}
               className="inline-flex w-full justify-center items-center rounded-xl px-6 py-3.5 font-semibold gradient-navy text-white shadow-lg hover:shadow-xl transition-all"
             >
               Go to Dashboard

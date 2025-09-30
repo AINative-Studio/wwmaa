@@ -26,7 +26,7 @@ export function TierCard({ name, price, benefits, featured }: { name: string; pr
         ))}
       </ul>
       <a
-        href="/membership#apply"
+        href={`/checkout?tier=${name.toLowerCase()}`}
         className={`mt-8 w-full inline-flex justify-center items-center rounded-xl px-6 py-3.5 font-semibold transition-all ${
           featured
             ? 'gradient-orange text-white shadow-lg hover:shadow-xl'
