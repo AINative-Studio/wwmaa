@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -40,12 +44,26 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
+    setErrors({});
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Login attempt:', { email, password, rememberMe });
+    const success = await login(email, password);
+
+    if (success) {
+      // Give time for user state to update
+      setTimeout(() => {
+        // Determine redirect based on email (since user state might not be updated yet)
+        if (email.toLowerCase() === 'admin@demo.com') {
+          router.push('/dashboard/admin');
+        } else if (email.toLowerCase() === 'instructor@demo.com') {
+          router.push('/dashboard/instructor');
+        } else {
+          router.push('/dashboard/student');
+        }
+      }, 100);
+    } else {
+      setErrors({ general: 'Invalid email or password' });
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -57,6 +75,11 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-8">
+          {errors.general && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{errors.general}</p>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label htmlFor="email" className="text-dojo-navy">Email Address</Label>
