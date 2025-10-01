@@ -90,6 +90,7 @@ export function Nav() {
           </div>
 
           <Link href="/events" className="text-gray-600 hover:text-dojo-navy transition-colors">Events</Link>
+          <Link href="/members" className="text-gray-600 hover:text-dojo-navy transition-colors">Members</Link>
           <Link href="/founder" className="text-gray-600 hover:text-dojo-navy transition-colors">Founder</Link>
           <Link href="/resources" className="text-gray-600 hover:text-dojo-navy transition-colors">Resources</Link>
 
