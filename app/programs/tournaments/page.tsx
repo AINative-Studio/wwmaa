@@ -7,22 +7,22 @@ const tournaments2024 = [
   {
     name: "Anthony Devas",
     place: "4th Place",
-    image: "https://images.pexels.com/photos/7045700/pexels-photo-7045700.jpeg?auto=compress&cs=tinysrgb&w=600"
+    image: "/images/camp/camp-1.jpg"
   },
   {
     name: "Ahmed Abo-Mahmood",
     place: "2nd Place",
-    image: "https://images.pexels.com/photos/7045412/pexels-photo-7045412.jpeg?auto=compress&cs=tinysrgb&w=600"
+    image: "/images/camp/camp-2.jpg"
   },
   {
     name: "Abdurahman Ismail",
     place: "3rd Place",
-    image: "https://images.pexels.com/photos/7045865/pexels-photo-7045865.jpeg?auto=compress&cs=tinysrgb&w=600"
+    image: "/images/camp/camp-3.jpg"
   },
   {
     name: "Asiya Ismail",
     place: "3rd Place",
-    image: "https://images.pexels.com/photos/7045688/pexels-photo-7045688.jpeg?auto=compress&cs=tinysrgb&w=600"
+    image: "/images/camp/camp-4.jpg"
   }
 ];
 
@@ -171,7 +171,7 @@ export default function TournamentsPage() {
                 <div className="aspect-[3/4] overflow-hidden">
                   <img
                     src={competitor.image}
-                    alt={competitor.name}
+                    alt={`${competitor.name} - ${competitor.place} at WWMAA 2024 Mid States Championship martial arts tournament`}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
                 </div>
