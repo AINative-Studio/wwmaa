@@ -5,6 +5,7 @@ import { Footer } from "@/components/footer";
 import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata = {
+  metadataBase: new URL("https://wwmaa.ainative.studio"),
   title: "WWMAA — World Wide Martial Arts Association",
   description: "Tradition, discipline, and community in the modern age.",
 };
