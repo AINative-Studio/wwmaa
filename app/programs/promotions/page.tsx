@@ -9,7 +9,7 @@ const rankLevels = [
 export default function PromotionsPage() {
   return (
     <div className="min-h-screen">
-      <section className="relative bg-gradient-to-r from-dojo-navy via-dojo-green to-dojo-navy py-32 overflow-hidden">
+      <section className="relative bg-gradient-to-r from-dojo-navy via-dojo-green to-dojo-navy py-20 overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
         <div className="relative mx-auto max-w-7xl px-6">
           <div className="text-center">
@@ -23,9 +23,9 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-white">
+      <section className="py-12 bg-white">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-dojo-navy to-dojo-green mb-6">
               <Award className="w-10 h-10 text-white" />
             </div>
@@ -45,7 +45,7 @@ export default function PromotionsPage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-16">
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
             {rankLevels.map((rank, idx) => (
               <div
                 key={idx}
@@ -65,9 +65,9 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-gradient-to-b from-white to-gray-50">
+      <section className="py-12 bg-gradient-to-b from-white to-gray-50">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-dojo-orange to-dojo-red mb-6">
               <TrendingUp className="w-10 h-10 text-white" />
             </div>
@@ -79,7 +79,7 @@ export default function PromotionsPage() {
           <div className="max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl border-2 border-border shadow-lg p-8 md:p-12">
               <div className="prose prose-lg max-w-none">
-                <div className="mb-8">
+                <div className="mb-6">
                   <h3 className="font-display text-2xl font-bold text-dojo-navy mb-4 flex items-center gap-3">
                     <div className="w-2 h-8 bg-gradient-to-b from-dojo-orange to-dojo-red rounded-full"></div>
                     Up to Sixth Dan (Teacher Level)
@@ -91,7 +91,7 @@ export default function PromotionsPage() {
                   </p>
                 </div>
 
-                <div className="mb-8">
+                <div className="mb-6">
                   <h3 className="font-display text-2xl font-bold text-dojo-navy mb-4 flex items-center gap-3">
                     <div className="w-2 h-8 bg-gradient-to-b from-dojo-navy to-dojo-green rounded-full"></div>
                     Above Teacher Level
@@ -109,9 +109,9 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-white">
+      <section className="py-12 bg-white">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-dojo-green to-dojo-navy mb-6">
               <Shield className="w-10 h-10 text-white" />
             </div>
@@ -203,9 +203,9 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-gradient-to-b from-white to-gray-50">
+      <section className="py-12 bg-gradient-to-b from-white to-gray-50">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-dojo-red to-dojo-orange mb-6">
               <Users className="w-10 h-10 text-white" />
             </div>
@@ -301,9 +301,9 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-white">
+      <section className="py-12 bg-white">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-dojo-navy to-dojo-green mb-6">
               <FileCheck className="w-10 h-10 text-white" />
             </div>
@@ -356,7 +356,7 @@ export default function PromotionsPage() {
         </div>
       </section>
 
-      <section className="py-16 bg-gradient-to-r from-dojo-navy to-dojo-green">
+      <section className="py-12 bg-gradient-to-r from-dojo-navy to-dojo-green">
         <div className="mx-auto max-w-4xl px-6 text-center">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mb-6">
             Ready to Advance Your Journey?
