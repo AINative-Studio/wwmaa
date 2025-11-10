@@ -110,7 +110,7 @@ export function Nav() {
                 <Link href="/login">Login</Link>
               </Button>
               <Button asChild size="sm" className="bg-gradient-to-r from-dojo-navy to-dojo-green hover:opacity-90 text-white">
-                <Link href="/membership">Join Now</Link>
+                <Link href="/membership/apply">Apply Now</Link>
               </Button>
             </>
           )}

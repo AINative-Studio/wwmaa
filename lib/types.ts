@@ -19,6 +19,8 @@ export interface MembershipTier {
   benefits: string[];
 }
 
+export type ApplicationStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+
 export interface Application {
   id: string;
   user_id: string;
@@ -27,6 +29,49 @@ export interface Application {
   refs?: string;
   status: "Pending" | "Approved" | "Rejected";
   created_at: string;
+}
+
+export interface MembershipApplication {
+  id: string;
+  applicant_email: string;
+  applicant_name: string;
+  applicant_phone?: string;
+  applicant_address?: string;
+  martial_arts_style: string;
+  years_experience: number;
+  current_rank?: string;
+  instructor_name?: string;
+  school_affiliation?: string;
+  reason_for_joining: string;
+  status: ApplicationStatus;
+  submitted_at?: string;
+  first_approval_at?: string;
+  approved_at?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+  can_reapply?: boolean;
+  reapply_after?: string;
+  approval_count: number;
+  required_approvals: number;
+  approved_by?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationApproval {
+  id: string;
+  application_id: string;
+  board_member_id: string;
+  board_member_name: string;
+  approved_at: string;
+  comments?: string;
+}
+
+export interface ApplicationTimeline {
+  event: string;
+  timestamp: string;
+  description: string;
+  actor?: string;
 }
 
 export interface EventItem {

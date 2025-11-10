@@ -58,6 +58,13 @@ class ApprovalStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class ApprovalAction(str, Enum):
+    """Approval action types"""
+    APPROVE = "approve"
+    REJECT = "reject"
+    INVALIDATE = "invalidate"
+
+
 class SubscriptionTier(str, Enum):
     """Membership subscription tiers"""
     FREE = "free"
@@ -166,6 +173,7 @@ class User(BaseDocument):
     is_verified: bool = Field(default=False, description="Email verification status")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
     profile_id: Optional[UUID] = Field(None, description="Reference to profiles collection")
+    reapplication_count: int = Field(default=0, ge=0, description="Number of membership reapplications")
 
     @field_validator('email')
     @classmethod
@@ -216,6 +224,22 @@ class Application(BaseDocument):
     reviewed_by: Optional[UUID] = Field(None, description="Reference to reviewing user")
     decision_notes: Optional[str] = Field(None, max_length=2000, description="Review notes")
 
+    # Rejection Fields
+    rejected_at: Optional[datetime] = Field(None, description="Rejection timestamp")
+    rejected_by: Optional[UUID] = Field(None, description="Reference to board member who rejected")
+    rejection_reason: Optional[str] = Field(None, max_length=2000, description="Reason for rejection")
+    recommended_improvements: Optional[str] = Field(None, max_length=2000, description="Recommended improvements for reapplication")
+    allow_reapplication: bool = Field(default=True, description="Whether applicant can reapply")
+    reapplication_allowed_at: Optional[datetime] = Field(None, description="Date when reapplication is allowed")
+    reapplication_count: int = Field(default=0, ge=0, description="Number of times applicant has reapplied")
+
+    # Appeal Process
+    appeal_submitted: bool = Field(default=False, description="Whether an appeal has been submitted")
+    appeal_reason: Optional[str] = Field(None, max_length=2000, description="Reason for appeal")
+    appeal_submitted_at: Optional[datetime] = Field(None, description="Appeal submission timestamp")
+    appeal_reviewed_at: Optional[datetime] = Field(None, description="Appeal review timestamp")
+    appeal_decision: Optional[str] = Field(None, max_length=50, description="Appeal decision (approved/rejected)")
+
     # Metadata
     subscription_tier: SubscriptionTier = Field(default=SubscriptionTier.FREE, description="Requested tier")
     certificate_url: Optional[str] = Field(None, description="Certificate file URL if approved")
@@ -230,10 +254,14 @@ class Approval(BaseDocument):
     application_id: UUID = Field(..., description="Reference to applications collection")
     approver_id: UUID = Field(..., description="Reference to users collection (board member)")
     status: ApprovalStatus = Field(default=ApprovalStatus.PENDING, description="Approval status")
+    action: ApprovalAction = Field(default=ApprovalAction.APPROVE, description="Approval action type")
     notes: Optional[str] = Field(None, max_length=2000, description="Approval notes")
     approved_at: Optional[datetime] = Field(None, description="Approval timestamp")
+    rejected_at: Optional[datetime] = Field(None, description="Rejection timestamp")
+    invalidated_at: Optional[datetime] = Field(None, description="Invalidation timestamp")
     conditions: Optional[List[str]] = Field(default_factory=list, description="Conditional approval requirements")
     priority: int = Field(default=0, ge=0, le=10, description="Priority level (0-10)")
+    is_active: bool = Field(default=True, description="Whether this approval is currently active")
 
 
 # ============================================================================

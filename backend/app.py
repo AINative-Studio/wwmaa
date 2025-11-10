@@ -12,6 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import get_settings
 from backend.routes import auth
+from backend.routes import applications
+from backend.routes import application_submission
 import logging
 
 # Initialize settings
@@ -45,6 +47,8 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth.router)
+app.include_router(applications.router)
+app.include_router(application_submission.router)
 
 
 @app.on_event("startup")

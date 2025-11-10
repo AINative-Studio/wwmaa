@@ -670,6 +670,678 @@ class EmailService:
             }
         )
 
+    def send_application_rejection_email(
+        self,
+        email: str,
+        user_name: str,
+        rejection_reason: Optional[str] = None,
+        recommended_improvements: Optional[str] = None,
+        allow_reapplication: bool = True,
+        reapplication_date: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Send application rejection email to applicant
+
+        Args:
+            email: Applicant's email address
+            user_name: Applicant's name for personalization
+            rejection_reason: Reason for rejection (optional)
+            recommended_improvements: Recommended improvements (optional)
+            allow_reapplication: Whether applicant can reapply
+            reapplication_date: Date when reapplication is allowed (optional)
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        subject = "WWMAA Membership Application Decision"
+
+        # Format reapplication date if provided
+        reapplication_info = ""
+        if allow_reapplication and reapplication_date:
+            formatted_date = reapplication_date.strftime('%B %d, %Y')
+            reapplication_info = f"<p>You are welcome to reapply for membership starting on <strong>{formatted_date}</strong> (30 days from now).</p>"
+        elif allow_reapplication:
+            reapplication_info = "<p>You are welcome to reapply for membership at any time.</p>"
+        else:
+            reapplication_info = "<p>Unfortunately, you are not eligible to reapply for membership at this time.</p>"
+
+        # Build rejection reason section
+        reason_section = ""
+        if rejection_reason:
+            reason_section = f"""
+            <div class="info-box">
+                <h3>Reason for Decision</h3>
+                <p>{rejection_reason}</p>
+            </div>
+            """
+
+        # Build recommended improvements section
+        improvements_section = ""
+        if recommended_improvements:
+            improvements_section = f"""
+            <div class="info-box" style="background-color: #e7f3ff; border-left: 4px solid #2196F3;">
+                <h3>Recommendations for Future Applications</h3>
+                <p>{recommended_improvements}</p>
+            </div>
+            """
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .info-box {{
+                    background-color: #fff3cd;
+                    border-left: 4px solid #ffc107;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+                .info-box h3 {{
+                    margin-top: 0;
+                    color: #333;
+                }}
+                .contact-box {{
+                    background-color: #e7f3ff;
+                    border-left: 4px solid #2196F3;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Membership Application Decision</h1>
+            </div>
+            <div class="content">
+                <h2>Dear {user_name},</h2>
+
+                <p>Thank you for your interest in joining the Women's Martial Arts Association of America. We appreciate the time and effort you put into your membership application.</p>
+
+                <p>After careful review by our board members, we regret to inform you that we are unable to approve your membership application at this time.</p>
+
+                {reason_section}
+
+                {improvements_section}
+
+                {reapplication_info}
+
+                <div class="contact-box">
+                    <h3>Questions or Concerns?</h3>
+                    <p>If you have any questions about this decision or would like additional feedback, please don't hesitate to contact us:</p>
+                    <ul>
+                        <li><strong>Email:</strong> membership@wwmaa.org</li>
+                        <li><strong>Phone:</strong> (555) 123-4567</li>
+                    </ul>
+                    <p>We're here to help and provide guidance for your martial arts journey.</p>
+                </div>
+
+                <p>We wish you the best in your martial arts training and future endeavors.</p>
+
+                <p>Sincerely,<br>
+                <strong>WWMAA Membership Committee</strong></p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>This is an automated message, but we welcome your replies to membership@wwmaa.org</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        # Plain text version
+        text_reason = f"\n\nReason for Decision:\n{rejection_reason}\n" if rejection_reason else ""
+        text_improvements = f"\nRecommendations for Future Applications:\n{recommended_improvements}\n" if recommended_improvements else ""
+
+        text_reapplication = ""
+        if allow_reapplication and reapplication_date:
+            formatted_date = reapplication_date.strftime('%B %d, %Y')
+            text_reapplication = f"\nYou are welcome to reapply for membership starting on {formatted_date} (30 days from now).\n"
+        elif allow_reapplication:
+            text_reapplication = "\nYou are welcome to reapply for membership at any time.\n"
+        else:
+            text_reapplication = "\nUnfortunately, you are not eligible to reapply for membership at this time.\n"
+
+        text_body = f"""
+        Membership Application Decision
+
+        Dear {user_name},
+
+        Thank you for your interest in joining the Women's Martial Arts Association of America. We appreciate the time and effort you put into your membership application.
+
+        After careful review by our board members, we regret to inform you that we are unable to approve your membership application at this time.
+        {text_reason}{text_improvements}{text_reapplication}
+        Questions or Concerns?
+        If you have any questions about this decision or would like additional feedback, please don't hesitate to contact us:
+
+        Email: membership@wwmaa.org
+        Phone: (555) 123-4567
+
+        We're here to help and provide guidance for your martial arts journey.
+
+        We wish you the best in your martial arts training and future endeavors.
+
+        Sincerely,
+        WWMAA Membership Committee
+
+        ---
+        Women's Martial Arts Association of America
+        This is an automated message, but we welcome your replies to membership@wwmaa.org
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="application-rejection",
+            metadata={
+                "user_email": email,
+                "user_name": user_name,
+                "allow_reapplication": str(allow_reapplication)
+            }
+        )
+
+    def send_application_first_approval_email(
+        self,
+        email: str,
+        applicant_name: str,
+        approver_name: str,
+        approvals_count: int
+    ) -> Dict[str, Any]:
+        """
+        Send email when application receives first board approval
+
+        Args:
+            email: Applicant's email address
+            applicant_name: Applicant's name for personalization
+            approver_name: Name/email of the board member who approved
+            approvals_count: Current number of approvals
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        subject = "WWMAA Application - Board Approval Received"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .alert {{
+                    background-color: #d4edda;
+                    border-left: 4px solid #28a745;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+                .info {{
+                    background-color: #d1ecf1;
+                    border-left: 4px solid #17a2b8;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Application Update</h1>
+            </div>
+            <div class="content">
+                <h2>Hello, {applicant_name}!</h2>
+
+                <div class="alert">
+                    <strong>Good News!</strong> Your WWMAA membership application has received board approval.
+                </div>
+
+                <p>We're pleased to inform you that a board member has reviewed and approved your membership application.</p>
+
+                <div class="info">
+                    <strong>Application Status:</strong><br>
+                    Approvals Received: {approvals_count} of 2<br>
+                    Status: Under Review
+                </div>
+
+                <p>Your application requires approval from two board members. You've received your first approval, and we're waiting for the second review.</p>
+
+                <p>Once your application receives the second approval, you'll be notified immediately and your membership will be activated.</p>
+
+                <p>Thank you for your patience during this process!</p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>This is an automated message, please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Application Update
+
+        Hello, {applicant_name}!
+
+        Good News! Your WWMAA membership application has received board approval.
+
+        Application Status:
+        - Approvals Received: {approvals_count} of 2
+        - Status: Under Review
+
+        Your application requires approval from two board members. You've received your first approval, and we're waiting for the second review.
+
+        Once your application receives the second approval, you'll be notified immediately and your membership will be activated.
+
+        Thank you for your patience during this process!
+
+        ---
+        Women's Martial Arts Association of America
+        This is an automated message, please do not reply to this email.
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="application-first-approval",
+            metadata={
+                "applicant_email": email,
+                "applicant_name": applicant_name,
+                "approvals_count": str(approvals_count)
+            }
+        )
+
+    def send_application_fully_approved_email(
+        self,
+        email: str,
+        applicant_name: str
+    ) -> Dict[str, Any]:
+        """
+        Send email when application is fully approved (2 approvals received)
+
+        Args:
+            email: Applicant's email address
+            applicant_name: Applicant's name for personalization
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+        dashboard_url = f"{frontend_url}/dashboard"
+
+        subject = "Congratulations! Your WWMAA Membership is Approved"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 12px 30px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .success {{
+                    background-color: #d4edda;
+                    border-left: 4px solid #28a745;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Membership Approved!</h1>
+            </div>
+            <div class="content">
+                <h2>Congratulations, {applicant_name}!</h2>
+
+                <div class="success">
+                    <strong>Welcome to WWMAA!</strong> Your membership application has been fully approved by our board.
+                </div>
+
+                <p>We are thrilled to welcome you to the Women's Martial Arts Association of America. Your application has received the required approvals from our board members, and your membership is now active.</p>
+
+                <p><strong>What's Next?</strong></p>
+                <ul>
+                    <li>Access your member dashboard to complete your profile</li>
+                    <li>Browse and register for upcoming events and training sessions</li>
+                    <li>Connect with other members in our community</li>
+                    <li>Access exclusive resources and training materials</li>
+                </ul>
+
+                <div style="text-align: center;">
+                    <a href="{dashboard_url}" class="button">Access Your Dashboard</a>
+                </div>
+
+                <p>If you have any questions or need assistance getting started, please don't hesitate to reach out.</p>
+
+                <p>We look forward to supporting your martial arts journey!</p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>This is an automated message, please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Membership Approved!
+
+        Congratulations, {applicant_name}!
+
+        Welcome to WWMAA! Your membership application has been fully approved by our board.
+
+        We are thrilled to welcome you to the Women's Martial Arts Association of America. Your application has received the required approvals from our board members, and your membership is now active.
+
+        What's Next?
+        - Access your member dashboard to complete your profile
+        - Browse and register for upcoming events and training sessions
+        - Connect with other members in our community
+        - Access exclusive resources and training materials
+
+        Access your dashboard: {dashboard_url}
+
+        If you have any questions or need assistance getting started, please don't hesitate to reach out.
+
+        We look forward to supporting your martial arts journey!
+
+        ---
+        Women's Martial Arts Association of America
+        This is an automated message, please do not reply to this email.
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="application-fully-approved",
+            metadata={
+                "applicant_email": email,
+                "applicant_name": applicant_name
+            }
+        )
+
+    def send_application_rejected_email(
+        self,
+        email: str,
+        applicant_name: str,
+        rejection_reason: str
+    ) -> Dict[str, Any]:
+        """
+        Send email when application is rejected (simplified version for workflow)
+
+        Args:
+            email: Applicant's email address
+            applicant_name: Applicant's name for personalization
+            rejection_reason: Reason for rejection
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        # Use the existing send_application_rejection_email method with defaults
+        return self.send_application_rejection_email(
+            email=email,
+            user_name=applicant_name,
+            rejection_reason=rejection_reason,
+            recommended_improvements=None,
+            allow_reapplication=True,
+            reapplication_date=None
+        )
+
+    def send_application_info_request_email(
+        self,
+        email: str,
+        applicant_name: str,
+        request_message: str,
+        reviewer_name: str
+    ) -> Dict[str, Any]:
+        """
+        Send email when board member requests additional information
+
+        Args:
+            email: Applicant's email address
+            applicant_name: Applicant's name for personalization
+            request_message: Message from board member
+            reviewer_name: Name of the board member requesting info
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+        application_url = f"{frontend_url}/dashboard/application"
+
+        subject = "WWMAA Application - Additional Information Requested"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 12px 30px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .info {{
+                    background-color: #d1ecf1;
+                    border-left: 4px solid #17a2b8;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Application Update</h1>
+            </div>
+            <div class="content">
+                <h2>Hello, {applicant_name}!</h2>
+
+                <p>Your WWMAA membership application is being reviewed by our board. A board member has requested some additional information to help complete the review process.</p>
+
+                <div class="info">
+                    <strong>Request from {reviewer_name}:</strong><br>
+                    {request_message}
+                </div>
+
+                <p>Please log in to your account to update your application with the requested information.</p>
+
+                <div style="text-align: center;">
+                    <a href="{application_url}" class="button">Update Application</a>
+                </div>
+
+                <p>Providing this additional information will help us process your application more efficiently.</p>
+
+                <p>Thank you for your cooperation!</p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>This is an automated message, please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Application Update
+
+        Hello, {applicant_name}!
+
+        Your WWMAA membership application is being reviewed by our board. A board member has requested some additional information to help complete the review process.
+
+        Request from {reviewer_name}:
+        {request_message}
+
+        Please log in to your account to update your application with the requested information.
+
+        Update your application: {application_url}
+
+        Providing this additional information will help us process your application more efficiently.
+
+        Thank you for your cooperation!
+
+        ---
+        Women's Martial Arts Association of America
+        This is an automated message, please do not reply to this email.
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="application-info-request",
+            metadata={
+                "applicant_email": email,
+                "applicant_name": applicant_name,
+                "reviewer_name": reviewer_name
+            }
+        )
+
 
 # Global email service instance (singleton pattern)
 _email_service_instance: Optional[EmailService] = None
