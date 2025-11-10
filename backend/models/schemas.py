@@ -92,12 +92,23 @@ class PaymentStatus(str, Enum):
 
 class EventType(str, Enum):
     """Event types"""
-    TRAINING = "training"
+    LIVE_TRAINING = "live_training"
     SEMINAR = "seminar"
+    TOURNAMENT = "tournament"
+    CERTIFICATION = "certification"
+    TRAINING = "training"
     COMPETITION = "competition"
     SOCIAL = "social"
     MEETING = "meeting"
     OTHER = "other"
+
+
+class EventStatus(str, Enum):
+    """Event status"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    DELETED = "deleted"
+    CANCELED = "canceled"
 
 
 class EventVisibility(str, Enum):
@@ -377,19 +388,22 @@ class Profile(BaseDocument):
 class Event(BaseDocument):
     """Community event"""
     title: str = Field(..., min_length=1, max_length=200, description="Event title")
-    description: Optional[str] = Field(None, max_length=5000, description="Event description")
+    description: Optional[str] = Field(None, max_length=10000, description="Event description (supports rich text)")
 
     # Classification
     event_type: EventType = Field(..., description="Event type")
     visibility: EventVisibility = Field(default=EventVisibility.PUBLIC, description="Visibility level")
+    status: EventStatus = Field(default=EventStatus.DRAFT, description="Event status")
 
     # Scheduling
-    start_datetime: datetime = Field(..., description="Event start time")
-    end_datetime: datetime = Field(..., description="Event end time")
-    timezone: str = Field(default="America/Los_Angeles", description="Timezone")
+    start_date: datetime = Field(..., description="Event start date and time")
+    end_date: datetime = Field(..., description="Event end date and time")
+    timezone: str = Field(default="America/Los_Angeles", description="Timezone (e.g., America/Los_Angeles, America/New_York)")
     is_all_day: bool = Field(default=False, description="All-day event flag")
 
-    # Location
+    # Location - support both physical and online
+    location: Optional[str] = Field(None, max_length=500, description="Location description (address or 'Online')")
+    is_online: bool = Field(default=False, description="Online event flag")
     location_name: Optional[str] = Field(None, max_length=200, description="Venue name")
     address: Optional[str] = Field(None, max_length=500, description="Full address")
     city: Optional[str] = Field(None, max_length=100, description="City")
@@ -398,27 +412,46 @@ class Event(BaseDocument):
     is_virtual: bool = Field(default=False, description="Virtual event flag")
 
     # Capacity
+    capacity: Optional[int] = Field(None, ge=1, description="Maximum number of attendees (optional)")
     max_attendees: Optional[int] = Field(None, ge=1, description="Maximum attendees")
     current_attendees: int = Field(default=0, ge=0, description="Current RSVP count")
     waitlist_enabled: bool = Field(default=False, description="Waitlist enabled")
 
-    # Organizer
-    organizer_id: UUID = Field(..., description="Reference to users collection")
+    # Pricing
+    price: Optional[float] = Field(None, ge=0, description="Event price (0 or null for free)")
+    registration_fee: Optional[float] = Field(None, ge=0, description="Registration fee")
+    currency: str = Field(default="USD", max_length=3, description="Currency code")
+
+    # Instructor/Speaker Information
+    instructor_info: Optional[str] = Field(None, max_length=1000, description="Instructor or speaker information")
+    organizer_id: UUID = Field(..., description="Reference to users collection (creator)")
     instructors: List[UUID] = Field(default_factory=list, description="Instructor user IDs")
 
     # Media
-    featured_image_url: Optional[str] = Field(None, description="Featured image URL")
+    featured_image_url: Optional[str] = Field(None, description="Featured image URL in ZeroDB Object Storage")
     gallery_urls: List[str] = Field(default_factory=list, description="Gallery image URLs")
 
     # Registration
     registration_required: bool = Field(default=False, description="Registration required")
     registration_deadline: Optional[datetime] = Field(None, description="Registration deadline")
-    registration_fee: Optional[float] = Field(None, ge=0, description="Registration fee")
 
-    # Status
+    # Publishing
     is_published: bool = Field(default=False, description="Published status")
+    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
+
+    # Soft Delete
+    is_deleted: bool = Field(default=False, description="Soft delete flag")
+    deleted_at: Optional[datetime] = Field(None, description="Deletion timestamp")
+    deleted_by: Optional[UUID] = Field(None, description="User who deleted the event")
+
+    # Cancellation
     is_canceled: bool = Field(default=False, description="Canceled status")
+    canceled_at: Optional[datetime] = Field(None, description="Cancellation timestamp")
     canceled_reason: Optional[str] = Field(None, max_length=500, description="Cancellation reason")
+
+    # Audit
+    created_by: UUID = Field(..., description="User who created the event")
+    updated_by: Optional[UUID] = Field(None, description="User who last updated the event")
 
     # Training Session Reference
     training_session_id: Optional[UUID] = Field(None, description="Reference to training_sessions")
@@ -426,6 +459,30 @@ class Event(BaseDocument):
     # Metadata
     tags: List[str] = Field(default_factory=list, description="Event tags")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    @field_validator('end_date')
+    @classmethod
+    def validate_end_after_start(cls, v, info):
+        """Validate that end_date is after start_date"""
+        if 'start_date' in info.data and v <= info.data['start_date']:
+            raise ValueError("end_date must be after start_date")
+        return v
+
+    @field_validator('capacity')
+    @classmethod
+    def validate_capacity_positive(cls, v):
+        """Validate that capacity is positive if provided"""
+        if v is not None and v <= 0:
+            raise ValueError("capacity must be greater than 0")
+        return v
+
+    @field_validator('price')
+    @classmethod
+    def validate_price_non_negative(cls, v):
+        """Validate that price is non-negative if provided"""
+        if v is not None and v < 0:
+            raise ValueError("price must be 0 or greater")
+        return v
 
 
 # ============================================================================

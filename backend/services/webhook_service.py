@@ -297,11 +297,22 @@ class WebhookService:
         """
         Handle checkout.session.completed event
 
-        Actions:
+        Handles both:
+        - Membership subscriptions (existing logic)
+        - Event RSVP payments (new logic for US-032)
+
+        Actions for membership:
         1. Create subscription in ZeroDB
         2. Activate membership
         3. Upgrade user role to 'member'
         4. Send welcome/confirmation email
+
+        Actions for event RSVP:
+        1. Create RSVP record in ZeroDB
+        2. Create payment record
+        3. Update event attendee count
+        4. Generate QR code
+        5. Send ticket/confirmation email
 
         Args:
             event_data: Stripe event data
@@ -313,8 +324,16 @@ class WebhookService:
         customer_id = session.get("customer")
         subscription_id = session.get("subscription")
         customer_email = session.get("customer_email")
+        metadata = session.get("metadata", {})
+        payment_type = metadata.get("type", "membership")
 
-        logger.info(f"Processing checkout completion for customer {customer_id}")
+        logger.info(f"Processing checkout completion for customer {customer_id}, type: {payment_type}")
+
+        # Route to appropriate handler based on payment type
+        if payment_type == "event_rsvp":
+            return self._handle_event_rsvp_payment(session)
+
+        # Default to membership payment handling (existing logic)
 
         # Find user by Stripe customer ID or email
         user = self._find_user_by_stripe_customer_id(customer_id)
@@ -946,6 +965,181 @@ class WebhookService:
             "refund_amount": refund_amount,
             "user_id": user_id
         }
+
+    def _handle_event_rsvp_payment(self, session: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle successful payment for event RSVP (US-032)
+
+        Actions:
+        1. Extract event and user info from session metadata
+        2. Create RSVP record in ZeroDB with confirmed status
+        3. Create payment record for transaction history
+        4. Update event attendee count
+        5. Generate QR code for check-in
+        6. Send ticket/confirmation email with QR code
+
+        Args:
+            session: Stripe checkout session data
+
+        Returns:
+            Processing result with RSVP details
+
+        Raises:
+            WebhookProcessingError: If RSVP creation fails
+        """
+        metadata = session.get("metadata", {})
+        event_id = metadata.get("event_id")
+        user_id = metadata.get("user_id")
+        amount_total = session.get("amount_total", 0) / 100  # Convert cents to dollars
+
+        if not event_id or not user_id:
+            error_msg = "Missing event_id or user_id in session metadata"
+            logger.error(error_msg)
+            raise WebhookProcessingError(error_msg)
+
+        logger.info(f"Processing event RSVP payment for user {user_id}, event {event_id}")
+
+        try:
+            # Get event details
+            event_result = self.db.get_document("events", event_id)
+            event = event_result.get("data", {})
+
+            if not event:
+                raise WebhookProcessingError(f"Event {event_id} not found")
+
+            # Get user details
+            user_result = self.db.get_document("users", user_id)
+            user = user_result.get("data", {})
+
+            if not user:
+                raise WebhookProcessingError(f"User {user_id} not found")
+
+            # Check for duplicate RSVP (idempotency)
+            existing_rsvp_result = self.db.query_documents(
+                collection="rsvps",
+                filters={
+                    "event_id": event_id,
+                    "user_id": user_id
+                },
+                limit=1
+            )
+
+            if existing_rsvp_result.get("documents"):
+                logger.warning(f"RSVP already exists for user {user_id}, event {event_id}")
+                existing_rsvp = existing_rsvp_result.get("documents")[0].get("data", {})
+                return {
+                    "status": "success",
+                    "action": "event_rsvp_payment",
+                    "rsvp_id": existing_rsvp.get("id"),
+                    "message": "RSVP already exists"
+                }
+
+            # Create payment record
+            now = datetime.utcnow()
+            payment_data = {
+                "user_id": user_id,
+                "amount": amount_total,
+                "currency": session.get("currency", "usd").upper(),
+                "status": PaymentStatus.SUCCEEDED.value,
+                "stripe_payment_intent_id": session.get("payment_intent"),
+                "stripe_charge_id": None,  # Will be populated from payment_intent
+                "payment_method": "card",
+                "description": f"Event registration: {event.get('title')}",
+                "processed_at": now.isoformat(),
+                "metadata": {
+                    "type": "event_rsvp",
+                    "event_id": event_id,
+                    "checkout_session_id": session.get("id")
+                }
+            }
+
+            payment_result = self.db.create_document("payments", payment_data)
+            payment_id = payment_result.get("id")
+
+            logger.info(f"Created payment record {payment_id} for event RSVP")
+
+            # Create RSVP record
+            rsvp_data = {
+                "event_id": event_id,
+                "user_id": user_id,
+                "user_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or session.get("customer_email"),
+                "user_email": user.get("email") or session.get("customer_email"),
+                "user_phone": user.get("phone"),
+                "rsvp_date": now.isoformat(),
+                "status": RSVPStatus.CONFIRMED.value,
+                "payment_id": payment_id,
+                "payment_status": PaymentStatus.SUCCEEDED.value,
+                "check_in_status": False,
+                "check_in_time": None,
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat()
+            }
+
+            rsvp_result = self.db.create_document("rsvps", rsvp_data)
+            rsvp_id = rsvp_result.get("id")
+
+            logger.info(f"Created RSVP {rsvp_id} for user {user_id}, event {event_id}")
+
+            # Update event attendee count
+            current_attendees = event.get("current_attendees", 0)
+            self.db.update_document(
+                "events",
+                event_id,
+                {"current_attendees": current_attendees + 1},
+                merge=True
+            )
+
+            # Generate QR code for check-in
+            from backend.services.rsvp_service import get_rsvp_service
+            rsvp_service = get_rsvp_service()
+            qr_code = rsvp_service.generate_qr_code(rsvp_id, event_id, user_id)
+
+            # Send ticket/confirmation email with QR code
+            try:
+                self.email_service.send_paid_event_ticket(
+                    email=rsvp_data["user_email"],
+                    user_name=rsvp_data["user_name"],
+                    event_title=event.get("title"),
+                    event_date=event.get("start_datetime"),
+                    event_location=event.get("location_name"),
+                    event_address=event.get("address"),
+                    amount=amount_total,
+                    currency="USD",
+                    qr_code=qr_code,
+                    rsvp_id=rsvp_id
+                )
+                logger.info(f"Sent event ticket email to {rsvp_data['user_email']}")
+            except Exception as e:
+                logger.error(f"Failed to send event ticket email: {e}")
+                # Don't fail webhook if email fails
+
+            # Create audit log
+            self._create_audit_log(
+                action=AuditAction.PAYMENT.value,
+                resource_type="rsvps",
+                resource_id=rsvp_id,
+                description=f"Event RSVP payment completed: ${amount_total} for {event.get('title')}",
+                user_id=user_id,
+                changes={
+                    "payment_id": payment_id,
+                    "event_id": event_id,
+                    "amount": amount_total
+                }
+            )
+
+            return {
+                "status": "success",
+                "action": "event_rsvp_payment",
+                "rsvp_id": rsvp_id,
+                "payment_id": payment_id,
+                "user_id": user_id,
+                "event_id": event_id,
+                "amount": amount_total
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing event RSVP payment: {e}")
+            raise WebhookProcessingError(f"Failed to process event RSVP payment: {str(e)}")
 
     # Helper methods
 

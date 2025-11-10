@@ -48,3 +48,7 @@ pytz==2023.3
 
 # Scheduling (for dunning reminders)
 APScheduler==3.10.4
+
+# QR Code Generation (for event RSVPs)
+qrcode[pil]==7.4.2
+Pillow==10.1.0

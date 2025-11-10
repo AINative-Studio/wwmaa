@@ -74,17 +74,52 @@ export interface ApplicationTimeline {
   actor?: string;
 }
 
+export type EventType = "live_training" | "seminar" | "tournament" | "certification";
+export type EventLocationType = "in_person" | "online";
+export type EventVisibility = "public" | "members_only";
+export type EventStatus = "draft" | "published" | "canceled" | "completed" | "deleted";
+
 export interface EventItem {
   id: string;
   title: string;
+  description?: string;
   start: string;
   end: string;
   location: string;
-  type: "live" | "training" | "seminar" | "tournament";
-  price?: number;
-  visibility: "public" | "member";
+  location_type: EventLocationType;
+  type: EventType;
+  price: number;
+  visibility: EventVisibility;
+  status: EventStatus;
   teaser?: string;
   image?: string;
+  max_participants?: number;
+  current_participants?: number;
+  instructor?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventFilters {
+  type?: EventType;
+  date_from?: string;
+  date_to?: string;
+  location?: EventLocationType;
+  price?: "free" | "paid";
+  visibility?: EventVisibility;
+}
+
+export interface EventSort {
+  sort_by: "date" | "price";
+  sort_order: "asc" | "desc";
+}
+
+export interface EventListResponse {
+  events: EventItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
 
 export interface RSVP {

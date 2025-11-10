@@ -1718,6 +1718,253 @@ class EmailService:
 
         return self._send_email(to_email=email, subject=subject, html_body=html_body, text_body=text_body, tag="refund-confirmation")
 
+    def send_free_event_rsvp_confirmation(
+        self,
+        email: str,
+        user_name: str,
+        event_title: str,
+        event_date: str,
+        event_location: Optional[str] = None,
+        event_address: Optional[str] = None,
+        qr_code: Optional[str] = None,
+        rsvp_id: Optional[str] = None,
+        from_waitlist: bool = False
+    ) -> Dict[str, Any]:
+        """Send RSVP confirmation email for free events (US-032)"""
+        from datetime import datetime
+
+        try:
+            event_dt = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+            formatted_date = event_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event_date
+
+        waitlist_msg = "Great news! A spot opened up and you've been confirmed from the waitlist." if from_waitlist else ""
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .success {{background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;}}
+            .qr-code {{text-align: center; margin: 30px 0;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>RSVP Confirmed</h1></div>
+            <div class="content">
+                <h2>Hi {user_name},</h2>
+                <p>Your RSVP for <strong>{event_title}</strong> has been confirmed!</p>
+                {f'<div class="success">{waitlist_msg}</div>' if from_waitlist else ""}
+                <h3>Event Details:</h3>
+                <ul>
+                    <li><strong>Event:</strong> {event_title}</li>
+                    <li><strong>Date & Time:</strong> {formatted_date}</li>
+                    {f"<li><strong>Location:</strong> {event_location}</li>" if event_location else ""}
+                    {f"<li><strong>Address:</strong> {event_address}</li>" if event_address else ""}
+                </ul>
+                {f'<div class="qr-code"><h3>Your Event Ticket:</h3><p>Present this QR code at check-in:</p><img src="data:image/png;base64,{qr_code}" alt="QR Code" style="max-width:300px;border:2px solid #ddd;padding:10px;"/></div>' if qr_code else ""}
+                <p><small>RSVP ID: {rsvp_id}</small></p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {user_name},\n\nYour RSVP for {event_title} is confirmed!\n\n{waitlist_msg}\n\nEvent: {event_title}\nDate: {formatted_date}\nRSVP ID: {rsvp_id}"
+
+        return self._send_email(to_email=email, subject=f"RSVP Confirmed: {event_title}", html_body=html_body, text_body=text_body, tag="event-rsvp")
+
+    def send_paid_event_ticket(
+        self,
+        email: str,
+        user_name: str,
+        event_title: str,
+        event_date: str,
+        event_location: Optional[str] = None,
+        event_address: Optional[str] = None,
+        amount: float = 0,
+        currency: str = "USD",
+        qr_code: Optional[str] = None,
+        rsvp_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Send ticket email for paid events (US-032)"""
+        from datetime import datetime
+
+        try:
+            event_dt = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+            formatted_date = event_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event_date
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .qr-code {{text-align: center; margin: 30px 0;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Your Event Ticket</h1></div>
+            <div class="content">
+                <h2>Hi {user_name},</h2>
+                <p>Thank you for your payment! Your ticket for <strong>{event_title}</strong> is confirmed.</p>
+                <h3>Payment Receipt:</h3>
+                <ul>
+                    <li><strong>Amount:</strong> ${amount:.2f} {currency}</li>
+                    <li><strong>Event:</strong> {event_title}</li>
+                    <li><strong>Date:</strong> {formatted_date}</li>
+                    {f"<li><strong>Location:</strong> {event_location}</li>" if event_location else ""}
+                </ul>
+                {f'<div class="qr-code"><h3>Your Ticket:</h3><p>Present this QR code at check-in:</p><img src="data:image/png;base64,{qr_code}" alt="Ticket QR" style="max-width:300px;border:2px solid #ddd;padding:10px;"/></div>' if qr_code else ""}
+                <p><small>Ticket ID: {rsvp_id}</small></p>
+                <p><strong>Cancellation Policy:</strong> Full refund available up to 24 hours before event.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {user_name},\n\nYour ticket for {event_title} is confirmed!\n\nAmount: ${amount:.2f}\nDate: {formatted_date}\nTicket ID: {rsvp_id}\n\nFull refund available up to 24 hours before event."
+
+        return self._send_email(to_email=email, subject=f"Your Ticket: {event_title}", html_body=html_body, text_body=text_body, tag="event-ticket")
+
+    def send_rsvp_cancellation_confirmation(
+        self,
+        email: str,
+        user_name: str,
+        event_title: str,
+        event_date: str,
+        refund_issued: bool = False,
+        refund_amount: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Send RSVP cancellation confirmation (US-032)"""
+        from datetime import datetime
+
+        try:
+            event_dt = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+            formatted_date = event_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event_date
+
+        refund_msg = ""
+        if refund_issued and refund_amount:
+            refund_msg = f'<p style="color:#28a745;font-weight:bold;">Refund of ${refund_amount:.2f} issued. Allow 5-10 business days.</p>'
+        elif refund_amount and not refund_issued:
+            refund_msg = '<p style="color:#dc3545;">No refund - cancellation within 24 hours of event.</p>'
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>RSVP Canceled</h1></div>
+            <div class="content">
+                <h2>Hi {user_name},</h2>
+                <p>Your RSVP for <strong>{event_title}</strong> on {formatted_date} has been canceled.</p>
+                {refund_msg}
+                <p>You can RSVP again if spots are available. We hope to see you at a future event!</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {user_name},\n\nYour RSVP for {event_title} on {formatted_date} has been canceled.\n\n{'Refund of $' + str(refund_amount) + ' issued.' if refund_issued else 'No refund available.' if refund_amount else ''}"
+
+        return self._send_email(to_email=email, subject=f"RSVP Canceled: {event_title}", html_body=html_body, text_body=text_body, tag="rsvp-cancellation")
+
+    def send_waitlist_notification(
+        self,
+        email: str,
+        user_name: str,
+        event_title: str,
+        event_date: str
+    ) -> Dict[str, Any]:
+        """Send waitlist notification (US-032)"""
+        from datetime import datetime
+
+        try:
+            event_dt = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+            formatted_date = event_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event_date
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Waitlist Confirmation</h1></div>
+            <div class="content">
+                <h2>Hi {user_name},</h2>
+                <p>You've been added to the waitlist for <strong>{event_title}</strong> on {formatted_date}.</p>
+                <p>We'll email you if a spot opens up. Spots are offered first-come, first-served.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {user_name},\n\nYou're on the waitlist for {event_title} on {formatted_date}.\nWe'll notify you if a spot opens up."
+
+        return self._send_email(to_email=email, subject=f"Waitlist: {event_title}", html_body=html_body, text_body=text_body, tag="waitlist")
+
+    def send_waitlist_spot_available_paid(
+        self,
+        email: str,
+        user_name: str,
+        event_title: str,
+        event_date: str,
+        event_id: str,
+        registration_fee: float
+    ) -> Dict[str, Any]:
+        """Send waitlist spot available notification for paid events (US-032)"""
+        from datetime import datetime
+
+        try:
+            event_dt = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+            formatted_date = event_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+        except Exception:
+            formatted_date = event_date
+
+        from backend.config import settings
+        event_url = f"{settings.PYTHON_BACKEND_URL.replace(':8000', ':3000')}/events/{event_id}"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .cta {{text-align: center; margin: 30px 0;}}
+            .button {{background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Spot Available!</h1></div>
+            <div class="content">
+                <h2>Hi {user_name},</h2>
+                <p style="color:#28a745;font-weight:bold;">Great news! A spot opened up for <strong>{event_title}</strong>!</p>
+                <p><strong>Event:</strong> {event_title}<br/><strong>Date:</strong> {formatted_date}<br/><strong>Fee:</strong> ${registration_fee:.2f}</p>
+                <p>You have <strong>24 hours</strong> to register and pay.</p>
+                <div class="cta"><a href="{event_url}" class="button">Complete Registration</a></div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {user_name},\n\nSpot available for {event_title} on {formatted_date}!\nFee: ${registration_fee:.2f}\n\nRegister within 24 hours: {event_url}"
+
+        return self._send_email(to_email=email, subject=f"Spot Available: {event_title}", html_body=html_body, text_body=text_body, tag="waitlist-spot")
+
 
 # Global email service instance (singleton pattern)
 _email_service_instance: Optional[EmailService] = None
