@@ -14,6 +14,10 @@ from backend.config import get_settings
 from backend.routes import auth
 from backend.routes import applications
 from backend.routes import application_submission
+from backend.routes import payments
+from backend.routes import checkout
+from backend.routes import billing
+from backend.routes import webhooks
 import logging
 
 # Initialize settings
@@ -49,6 +53,10 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(applications.router)
 app.include_router(application_submission.router)
+app.include_router(payments.router)
+app.include_router(checkout.router)
+app.include_router(billing.router)
+app.include_router(webhooks.router)
 
 
 @app.on_event("startup")

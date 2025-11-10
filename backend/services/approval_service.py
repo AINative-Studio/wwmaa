@@ -431,6 +431,9 @@ class ApprovalService:
 
             logger.info(f"Application {application_id} auto-approved successfully")
 
+            # Trigger checkout session creation and payment email
+            self._trigger_payment_flow(application_id, application)
+
             return updated_result.get("data", {})
 
         except ZeroDBNotFoundError:
@@ -519,6 +522,90 @@ class ApprovalService:
         logger.info(f"Application {application_id} rejected by {board_member_id}")
 
         return result.get("data", {})
+
+    def _trigger_payment_flow(
+        self,
+        application_id: str,
+        application: Dict[str, Any]
+    ) -> None:
+        """
+        Trigger payment flow after application approval
+
+        Creates Stripe checkout session and sends payment link email to applicant.
+
+        Args:
+            application_id: UUID of the application
+            application: Application data dictionary
+        """
+        try:
+            # Import here to avoid circular dependency
+            from backend.services.stripe_service import get_stripe_service
+
+            user_id = application.get("user_id")
+            user_email = application.get("email")
+            tier_id = application.get("subscription_tier", "basic")
+            applicant_name = f"{application.get('first_name', '')} {application.get('last_name', '')}".strip()
+
+            if not user_id or not user_email:
+                logger.error(f"Cannot trigger payment flow: missing user_id or email for application {application_id}")
+                return
+
+            # Create Stripe checkout session
+            stripe_service = get_stripe_service()
+
+            try:
+                session_data = stripe_service.create_checkout_session(
+                    user_id=str(user_id),
+                    application_id=application_id,
+                    tier_id=tier_id,
+                    customer_email=user_email
+                )
+
+                checkout_url = session_data.get("url")
+                amount_cents = session_data.get("amount")
+                amount_dollars = amount_cents / 100 if amount_cents else 0
+
+                logger.info(
+                    f"Checkout session created for application {application_id}: "
+                    f"{session_data.get('session_id')}"
+                )
+
+                # Get tier name for email
+                tier_names = {
+                    "basic": "Basic Membership",
+                    "premium": "Premium Membership",
+                    "lifetime": "Instructor Membership"
+                }
+                tier_name = tier_names.get(tier_id, tier_id.title())
+
+                # Format amount for email
+                if tier_id == "lifetime":
+                    amount_str = f"${amount_dollars:.2f} one-time"
+                else:
+                    amount_str = f"${amount_dollars:.2f}/year"
+
+                # Send payment link email
+                try:
+                    email_service = get_email_service()
+                    email_service.send_payment_link_email(
+                        email=user_email,
+                        applicant_name=applicant_name,
+                        payment_url=checkout_url,
+                        tier_name=tier_name,
+                        amount=amount_str
+                    )
+                    logger.info(f"Payment link email sent to {user_email} for application {application_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send payment link email: {e}")
+                    # Don't fail the approval if email fails
+
+            except Exception as e:
+                logger.error(f"Failed to create checkout session: {e}")
+                # Don't fail the approval if checkout creation fails
+
+        except Exception as e:
+            logger.error(f"Error in payment flow trigger: {e}")
+            # Don't fail the approval if payment flow fails
 
     def _create_audit_log(
         self,

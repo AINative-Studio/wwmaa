@@ -651,6 +651,36 @@ class AuditLog(BaseDocument):
 
 
 # ============================================================================
+# WEBHOOK_EVENTS COLLECTION
+# ============================================================================
+
+class WebhookEvent(BaseDocument):
+    """Stripe webhook event storage for idempotency and debugging"""
+    stripe_event_id: str = Field(..., min_length=1, max_length=200, description="Stripe event ID (unique)")
+    event_type: str = Field(..., max_length=100, description="Event type (e.g., 'checkout.session.completed')")
+
+    # Event Data
+    event_data: Dict[str, Any] = Field(..., description="Full event data from Stripe")
+
+    # Processing Status
+    processing_status: str = Field(
+        default="processed",
+        max_length=50,
+        description="Processing status (processed/failed/pending)"
+    )
+    error_message: Optional[str] = Field(None, max_length=2000, description="Error message if processing failed")
+    processed_at: datetime = Field(..., description="Processing timestamp")
+
+    # Retry Information
+    retry_count: int = Field(default=0, ge=0, description="Number of processing retries")
+    last_retry_at: Optional[datetime] = Field(None, description="Last retry timestamp")
+
+    # Metadata
+    processing_time_seconds: Optional[float] = Field(None, ge=0, description="Processing time in seconds")
+    webhook_version: str = Field(default="1.0", description="Webhook handler version")
+
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
@@ -671,6 +701,7 @@ def get_all_models():
         "content_index": ContentIndex,
         "media_assets": MediaAsset,
         "audit_logs": AuditLog,
+        "webhook_events": WebhookEvent,
     }
 
 

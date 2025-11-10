@@ -124,3 +124,56 @@ export interface Certification {
   description: string;
   level?: string;
 }
+
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing" | "incomplete" | "incomplete_expired" | "unpaid";
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  tier: string;
+  tier_name: string;
+  status: SubscriptionStatus;
+  price: number;
+  currency: string;
+  stripe_subscription_id?: string;
+  stripe_customer_id?: string;
+  current_period_start: string;
+  current_period_end: string;
+  next_billing_date?: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string;
+  trial_end?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentMethod {
+  id: string;
+  type: string;
+  brand?: string;
+  last4?: string;
+  exp_month?: number;
+  exp_year?: number;
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  amount_paid: number;
+  currency: string;
+  status: string;
+  created: string;
+  invoice_pdf?: string;
+  hosted_invoice_url?: string;
+}
+
+export interface SubscriptionDetails {
+  subscription: Subscription;
+  payment_method?: PaymentMethod;
+  upcoming_invoice?: {
+    amount_due: number;
+    currency: string;
+    next_payment_attempt?: string;
+  };
+  recent_invoices: Invoice[];
+}

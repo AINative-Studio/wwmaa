@@ -1342,6 +1342,382 @@ class EmailService:
             }
         )
 
+    def send_payment_link_email(
+        self,
+        email: str,
+        applicant_name: str,
+        payment_url: str,
+        tier_name: str,
+        amount: str
+    ) -> Dict[str, Any]:
+        """
+        Send payment link email after application approval
+
+        Args:
+            email: Applicant's email address
+            applicant_name: Applicant's name for personalization
+            payment_url: Stripe checkout URL
+            tier_name: Membership tier name
+            amount: Payment amount (formatted string)
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        subject = "Complete Your WWMAA Membership Payment"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #28a745;
+                    color: white;
+                    padding: 15px 40px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                    font-size: 18px;
+                    font-weight: bold;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .success {{
+                    background-color: #d4edda;
+                    border-left: 4px solid #28a745;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+                .info-box {{
+                    background-color: #e7f3ff;
+                    border-left: 4px solid #2196F3;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+                .price {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #8B0000;
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Payment Required</h1>
+            </div>
+            <div class="content">
+                <h2>Congratulations, {applicant_name}!</h2>
+
+                <div class="success">
+                    <strong>Great News!</strong> Your WWMAA membership application has been approved by our board!
+                </div>
+
+                <p>We're excited to welcome you to the Women's Martial Arts Association of America. To complete your membership activation, please proceed with your payment.</p>
+
+                <div class="info-box">
+                    <strong>Membership Details:</strong><br>
+                    Tier: {tier_name}<br>
+                    <div class="price">{amount}</div>
+                </div>
+
+                <p><strong>Next Steps:</strong></p>
+                <ol>
+                    <li>Click the payment button below to proceed to our secure checkout</li>
+                    <li>Enter your payment information (processed securely by Stripe)</li>
+                    <li>Complete your payment</li>
+                    <li>Start enjoying your WWMAA membership benefits!</li>
+                </ol>
+
+                <div style="text-align: center;">
+                    <a href="{payment_url}" class="button">Complete Payment</a>
+                </div>
+
+                <p style="word-break: break-all; background: white; padding: 10px; border-radius: 3px; font-size: 12px;">
+                    Or copy and paste this link: {payment_url}
+                </p>
+
+                <div class="info-box">
+                    <strong>Payment Security:</strong><br>
+                    Your payment is processed securely through Stripe, an industry-leading payment processor. We never store your credit card information. This payment link will expire in 30 minutes for your security.
+                </div>
+
+                <p><strong>What's Included with Your Membership:</strong></p>
+                <ul>
+                    <li>Access to all member-only events and training sessions</li>
+                    <li>Member directory and networking opportunities</li>
+                    <li>Exclusive training videos and resources</li>
+                    <li>Monthly newsletter with martial arts tips and community updates</li>
+                    <li>Discounts on events and merchandise</li>
+                </ul>
+
+                <p>If you have any questions or need assistance, please don't hesitate to contact us at membership@wwmaa.org.</p>
+
+                <p>We look forward to supporting your martial arts journey!</p>
+
+                <p>Sincerely,<br>
+                <strong>WWMAA Membership Team</strong></p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>This is an automated message. If you need help, contact membership@wwmaa.org</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Payment Required
+
+        Congratulations, {applicant_name}!
+
+        Great News! Your WWMAA membership application has been approved by our board!
+
+        We're excited to welcome you to the Women's Martial Arts Association of America. To complete your membership activation, please proceed with your payment.
+
+        Membership Details:
+        - Tier: {tier_name}
+        - Amount: {amount}
+
+        Next Steps:
+        1. Visit the payment link below to proceed to our secure checkout
+        2. Enter your payment information (processed securely by Stripe)
+        3. Complete your payment
+        4. Start enjoying your WWMAA membership benefits!
+
+        Payment Link:
+        {payment_url}
+
+        Payment Security:
+        Your payment is processed securely through Stripe. We never store your credit card information. This payment link will expire in 30 minutes for your security.
+
+        What's Included with Your Membership:
+        - Access to all member-only events and training sessions
+        - Member directory and networking opportunities
+        - Exclusive training videos and resources
+        - Monthly newsletter with martial arts tips
+        - Discounts on events and merchandise
+
+        If you have any questions, contact us at membership@wwmaa.org.
+
+        We look forward to supporting your martial arts journey!
+
+        Sincerely,
+        WWMAA Membership Team
+
+        ---
+        Women's Martial Arts Association of America
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="payment-link",
+            metadata={
+                "applicant_email": email,
+                "applicant_name": applicant_name,
+                "tier_name": tier_name,
+                "amount": amount
+            }
+        )
+
+    def send_payment_success_email(
+        self,
+        email: str,
+        user_name: str,
+        amount: float,
+        currency: str = "USD",
+        receipt_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send payment success confirmation email
+
+        Args:
+            email: User's email address
+            user_name: User's name for personalization
+            amount: Payment amount
+            currency: Currency code (default: USD)
+            receipt_url: URL to payment receipt (optional)
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        subject = "Payment Successful - WWMAA Membership"
+
+        # Format amount with currency symbol
+        currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
+        symbol = currency_symbols.get(currency.upper(), currency)
+        formatted_amount = f"{symbol}{amount:.2f}"
+
+        # Build receipt section
+        receipt_section = ""
+        if receipt_url:
+            receipt_section = f'<div style="text-align: center;"><a href="{receipt_url}" class="button">View Receipt</a></div>'
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+                .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;}}
+                .content {{background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px;}}
+                .button {{display: inline-block; background-color: #8B0000; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;}}
+                .footer {{margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center;}}
+                .success {{background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;}}
+            </style>
+        </head>
+        <body>
+            <div class="header"><h1>Payment Successful</h1></div>
+            <div class="content">
+                <h2>Thank you, {user_name}!</h2>
+                <div class="success"><strong>Your payment has been processed successfully.</strong></div>
+                <p>Amount Paid: {formatted_amount} {currency}<br>Date: {datetime.utcnow().strftime('%B %d, %Y')}</p>
+                {receipt_section}
+                <p>Your WWMAA membership is now active with full member benefits!</p>
+            </div>
+            <div class="footer"><p>Women's Martial Arts Association of America</p></div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Payment Successful\n\nThank you, {user_name}!\n\nAmount: {formatted_amount} {currency}\nDate: {datetime.utcnow().strftime('%B %d, %Y')}\n\nYour membership is now active!"
+
+        return self._send_email(to_email=email, subject=subject, html_body=html_body, text_body=text_body, tag="payment-success")
+
+    def send_payment_failed_email(self, email: str, user_name: str, amount: float, currency: str = "USD") -> Dict[str, Any]:
+        """Send payment failed (dunning) email"""
+        subject = "Payment Failed - WWMAA Membership"
+        currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
+        symbol = currency_symbols.get(currency.upper(), currency)
+        formatted_amount = f"{symbol}{amount:.2f}"
+        frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+        payment_url = f"{frontend_url}/dashboard/billing"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .warning {{background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;}}
+            .button {{display: inline-block; background-color: #8B0000; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Payment Failed</h1></div>
+            <div class="content">
+                <h2>Hello, {user_name}</h2>
+                <div class="warning"><strong>Action Required:</strong> We were unable to process your payment of {formatted_amount} {currency}.</div>
+                <p>Please update your payment method to avoid service interruption.</p>
+                <div style="text-align: center;"><a href="{payment_url}" class="button">Update Payment Method</a></div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Payment Failed\n\nHello, {user_name}\n\nWe were unable to process your payment of {formatted_amount} {currency}.\n\nPlease update your payment method: {payment_url}"
+
+        return self._send_email(to_email=email, subject=subject, html_body=html_body, text_body=text_body, tag="payment-failed")
+
+    def send_subscription_canceled_email(self, email: str, user_name: str) -> Dict[str, Any]:
+        """Send subscription cancellation confirmation email"""
+        subject = "Subscription Canceled - WWMAA"
+        frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Subscription Canceled</h1></div>
+            <div class="content">
+                <h2>Hello, {user_name}</h2>
+                <p>Your WWMAA membership has been canceled. We're sorry to see you go!</p>
+                <p>You can reactivate anytime at: {frontend_url}/membership</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Subscription Canceled\n\nHello, {user_name}\n\nYour membership has been canceled. Reactivate anytime at: {frontend_url}/membership"
+
+        return self._send_email(to_email=email, subject=subject, html_body=html_body, text_body=text_body, tag="subscription-canceled")
+
+    def send_refund_confirmation_email(self, email: str, user_name: str, amount: float, currency: str = "USD") -> Dict[str, Any]:
+        """Send refund confirmation email"""
+        subject = "Refund Processed - WWMAA"
+        currency_symbols = {"USD": "$", "EUR": "€", "GBP": "£"}
+        symbol = currency_symbols.get(currency.upper(), currency)
+        formatted_amount = f"{symbol}{amount:.2f}"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .success {{background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Refund Processed</h1></div>
+            <div class="content">
+                <h2>Hello, {user_name}</h2>
+                <div class="success"><strong>Your refund of {formatted_amount} {currency} has been processed.</strong></div>
+                <p>The refund should appear in your account within 5-10 business days.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Refund Processed\n\nHello, {user_name}\n\nYour refund of {formatted_amount} {currency} has been processed and should appear in 5-10 business days."
+
+        return self._send_email(to_email=email, subject=subject, html_body=html_body, text_body=text_body, tag="refund-confirmation")
+
 
 # Global email service instance (singleton pattern)
 _email_service_instance: Optional[EmailService] = None

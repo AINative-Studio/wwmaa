@@ -45,3 +45,6 @@ isort==5.13.2
 # Date/Time Utilities
 python-dateutil==2.8.2
 pytz==2023.3
+
+# Scheduling (for dunning reminders)
+APScheduler==3.10.4
