@@ -1,0 +1,15 @@
+        # Send confirmation email (optional - don't fail if this fails)
+        try:
+            first_name = user_data.get("first_name", "")
+            last_name = user_data.get("last_name", "")
+            user_name = f"{first_name} {last_name}".strip() or user_email
+
+            email_service.send_password_changed_email(
+                email=user_email,
+                user_name=user_name
+            )
+            logger.info(f"Password changed notification sent to {user_email}")
+
+        except Exception as e:
+            logger.error(f"Failed to send password change notification to {user_email}: {e}")
+            # Continue anyway - password reset succeeded

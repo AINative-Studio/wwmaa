@@ -1,0 +1,97 @@
+# WWMAA Backend - Coverage Configuration
+# This file provides additional coverage settings not available in pytest.ini
+
+[run]
+# Source code paths to measure
+source = backend
+
+# Files and directories to omit from coverage
+omit =
+    */tests/*
+    */test_*.py
+    *_test.py
+    */__pycache__/*
+    */site-packages/*
+    */venv/*
+    */env/*
+    */.venv/*
+    backend/__init__.py
+    backend/scripts/*
+    */conftest.py
+
+# Branch coverage
+branch = True
+
+# Parallel mode for multiprocessing
+parallel = False
+
+# Data file location
+data_file = .coverage
+
+[report]
+# Precision of coverage percentages
+precision = 2
+
+# Show lines that weren't executed
+show_missing = True
+
+# Skip files that are fully covered
+skip_covered = False
+
+# Skip files with no executable code
+skip_empty = True
+
+# Sort report by name
+sort = Name
+
+# Lines to exclude from coverage consideration
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Debug-only code
+    def __repr__
+    def __str__
+
+    # Defensive assertions
+    raise AssertionError
+    raise NotImplementedError
+    raise ValueError\("Unsupported
+
+    # Non-runnable code
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+
+    # Abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+    @staticmethod
+    @classmethod
+
+    # Pass statements
+    pass
+
+    # Ellipsis (used in type stubs)
+    \.\.\.
+
+    # Debugging breakpoints
+    breakpoint\(\)
+    import pdb
+    pdb.set_trace\(\)
+
+[html]
+# HTML report directory
+directory = htmlcov
+
+# Title for HTML report
+title = WWMAA Backend Test Coverage Report
+
+[xml]
+# XML report file
+output = coverage.xml
+
+[json]
+# JSON report file
+output = coverage.json
+show_contexts = True
