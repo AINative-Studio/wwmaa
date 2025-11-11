@@ -52,9 +52,13 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY --chown=appuser:appuser backend/ /app/backend/
 
-# Create necessary directories
+# Copy Railway startup script for debugging
+COPY --chown=appuser:appuser railway-start.sh /app/railway-start.sh
+
+# Create necessary directories and make startup script executable
 RUN mkdir -p /var/log/wwmaa && \
-    chown -R appuser:appuser /var/log/wwmaa
+    chown -R appuser:appuser /var/log/wwmaa && \
+    chmod +x /app/railway-start.sh
 
 # Switch to non-root user
 USER appuser
@@ -72,5 +76,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
-# Start command (Railway can override this)
-CMD uvicorn backend.app:app --host 0.0.0.0 --port ${PORT} --workers 2
+# Start command with Railway debug script
+# This script validates environment variables and provides detailed startup logging
+CMD ["/app/railway-start.sh"]
