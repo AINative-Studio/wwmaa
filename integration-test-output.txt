@@ -1,0 +1,21 @@
+Loading environment from: /Users/aideveloper/Desktop/wwmaa/.env
+Traceback (most recent call last):
+  File "/Users/aideveloper/Desktop/wwmaa/backend/scripts/test_integrations.py", line 40, in <module>
+    from backend.services.cloudflare_calls_service import CloudflareCallsService, CloudflareCallsError
+  File "/Users/aideveloper/Desktop/wwmaa/backend/services/cloudflare_calls_service.py", line 14, in <module>
+    from backend.config import settings
+  File "/Users/aideveloper/Desktop/wwmaa/backend/config.py", line 494, in <module>
+    settings = get_settings()
+  File "/Users/aideveloper/Desktop/wwmaa/backend/config.py", line 490, in get_settings
+    return Settings()
+  File "/Users/aideveloper/Library/Python/3.9/lib/python/site-packages/pydantic_settings/main.py", line 193, in __init__
+    super().__init__(
+  File "/Users/aideveloper/Library/Python/3.9/lib/python/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+AI_REGISTRY_API_KEY
+  Field required [type=missing, input_value={'PYTHON_ENV': 'developme...'http://localhost:3000'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing
+OPENAI_API_KEY
+  Field required [type=missing, input_value={'PYTHON_ENV': 'developme...'http://localhost:3000'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/missing

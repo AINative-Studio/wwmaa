@@ -1,0 +1,49 @@
+Sprint 6 Integration Test Results
+Executed: 2025-11-10T18:26:21.261843
+======================================================================
+
+
+╔══════════════════════════════════════════════════════════════╗
+║        Sprint 6 Integration Tests - Real API Testing         ║
+╚══════════════════════════════════════════════════════════════╝
+
+Checking credentials...
+
+  ✓ cloudflare_calls: Credentials available
+  ✓ cloudflare_stream: Credentials available
+  ⚠ beehiiv: Missing credentials - BEEHIIV_API_KEY
+  ✓ zerodb: Credentials available
+
+[1/4] Testing Cloudflare Calls...
+  ✓ Creating test room (session: integration-test-room-1762827980)
+  ✗ Error: Cloudflare Calls API error: POST method not allowed for the api_token authentication scheme
+  ❌ FAILED (0.2s)
+
+[2/4] Testing Cloudflare Stream...
+  ✓ Creating test video from URL
+  ✗ Error: Cloudflare Stream API error: Decoding Error: A portion of the request could be not decoded. Refer to the messages field for more information and try again.
+  ❌ FAILED (0.4s)
+
+[3/4] Testing beehiiv...
+  ⊘ Skipping beehiiv (credentials not configured)
+  ⊘ SKIPPED (0.0s)
+
+[4/4] Testing ZeroDB...
+  ✓ Testing connection to ZeroDB
+  ✓ Querying 'users' collection
+  ✗ Error: Resource not found: Not Found
+  ❌ FAILED (0.2s)
+
+
+╔══════════════════════════════════════════════════════════════╗
+║                      TEST RESULTS                             ║
+╠══════════════════════════════════════════════════════════════╣
+║ Total Tests:    4                                            ║
+║ Passed:         1                                             ║
+║ Failed:         3                                             ║
+║ Duration:       0.8s                                        ║
+║ Status:         ❌ SOME TESTS FAILED                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+Estimated API costs for this test run: $0.00
+
