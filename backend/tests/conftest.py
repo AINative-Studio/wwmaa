@@ -69,6 +69,8 @@ def test_env_vars() -> Dict[str, str]:
         "CLOUDFLARE_API_TOKEN": "test_token_123",
         "CLOUDFLARE_CALLS_APP_ID": "test_calls_app",
         "AINATIVE_API_KEY": "test_ainative_key",
+        "AI_REGISTRY_API_KEY": "test_ai_registry_key",
+        "OPENAI_API_KEY": "test_openai_key_sk_1234567890",
         "PYTHON_BACKEND_URL": "http://localhost:8000",
         "TEST_COVERAGE_MINIMUM": "80",
     }

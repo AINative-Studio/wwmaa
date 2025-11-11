@@ -171,6 +171,93 @@ class Settings(BaseSettings):
         description="AINative AI Registry API key"
     )
 
+    AI_REGISTRY_API_KEY: str = Field(
+        ...,
+        min_length=10,
+        description="AI Registry API key for LLM orchestration"
+    )
+
+    AI_REGISTRY_BASE_URL: HttpUrl = Field(
+        default="https://api.ainative.studio",
+        description="AI Registry API base URL"
+    )
+
+    AI_REGISTRY_MODEL: str = Field(
+        default="gpt-4",
+        description="Primary LLM model for AI Registry (gpt-4, claude-3-sonnet, etc.)"
+    )
+
+    AI_REGISTRY_FALLBACK_MODEL: str = Field(
+        default="gpt-3.5-turbo",
+        description="Fallback LLM model when primary fails"
+    )
+
+    AI_REGISTRY_MAX_TOKENS: int = Field(
+        default=2000,
+        ge=100,
+        le=32000,
+        description="Maximum tokens for LLM responses"
+    )
+
+    AI_REGISTRY_TEMPERATURE: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for LLM responses (0.0-2.0)"
+    )
+
+    AI_REGISTRY_TIMEOUT: int = Field(
+        default=60,
+        ge=10,
+        le=300,
+        description="Request timeout in seconds for AI Registry calls"
+    )
+
+    # ==========================================
+    # OpenAI Configuration (REQUIRED for Content Indexing)
+    # ==========================================
+    OPENAI_API_KEY: str = Field(
+        ...,
+        min_length=10,
+        description="OpenAI API key for embeddings generation"
+    )
+
+    OPENAI_EMBEDDING_MODEL: str = Field(
+        default="text-embedding-ada-002",
+        description="OpenAI embedding model to use"
+    )
+
+    # ==========================================
+    # Content Indexing Configuration
+    # ==========================================
+    INDEXING_SCHEDULE_INTERVAL_HOURS: int = Field(
+        default=6,
+        ge=1,
+        le=24,
+        description="Interval in hours for automatic content indexing (1-24)"
+    )
+
+    INDEXING_CHUNK_SIZE: int = Field(
+        default=500,
+        ge=100,
+        le=2000,
+        description="Maximum tokens per content chunk (100-2000)"
+    )
+
+    INDEXING_CHUNK_OVERLAP: int = Field(
+        default=50,
+        ge=0,
+        le=200,
+        description="Token overlap between chunks (0-200)"
+    )
+
+    INDEXING_BATCH_SIZE: int = Field(
+        default=100,
+        ge=1,
+        le=2048,
+        description="Batch size for OpenAI embedding requests (1-2048)"
+    )
+
     # ==========================================
     # Backend Configuration
     # ==========================================
@@ -313,6 +400,23 @@ class Settings(BaseSettings):
         return {
             "api_key": self.POSTMARK_API_KEY,
             "from_email": self.FROM_EMAIL
+        }
+
+    def get_ai_registry_config(self) -> dict:
+        """
+        Get AI Registry configuration as a dictionary.
+
+        Returns:
+            Dictionary with AI Registry configuration
+        """
+        return {
+            "api_key": self.AI_REGISTRY_API_KEY,
+            "base_url": str(self.AI_REGISTRY_BASE_URL),
+            "model": self.AI_REGISTRY_MODEL,
+            "fallback_model": self.AI_REGISTRY_FALLBACK_MODEL,
+            "max_tokens": self.AI_REGISTRY_MAX_TOKENS,
+            "temperature": self.AI_REGISTRY_TEMPERATURE,
+            "timeout": self.AI_REGISTRY_TIMEOUT
         }
 
 

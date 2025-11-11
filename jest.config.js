@@ -12,6 +12,9 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(react-markdown|remark-gfm|rehype-raw|micromark|decode-named-character-reference|character-entities|unist-|unified|bail|is-plain-obj|trough|vfile|mdast-|ccount|escape-string-regexp|markdown-table)/)',
+  ],
   collectCoverageFrom: [
     'components/**/*.{js,jsx,ts,tsx}',
     'app/**/*.{js,jsx,ts,tsx}',

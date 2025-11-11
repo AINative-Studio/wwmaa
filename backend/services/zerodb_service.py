@@ -412,16 +412,131 @@ class ZeroDBClient:
 
     # Vector Search Operations
 
+    def create_vector_collection(
+        self,
+        collection: str,
+        dimension: int = 1536,
+        similarity_metric: str = "cosine",
+        metadata_schema: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a vector search collection with specified configuration
+
+        Args:
+            collection: Name of the collection to create
+            dimension: Vector dimension size (default: 1536 for OpenAI ada-002)
+            similarity_metric: Similarity metric to use (cosine, euclidean, dot_product)
+            metadata_schema: Optional schema for document metadata fields
+
+        Returns:
+            Collection creation confirmation with configuration
+
+        Raises:
+            ZeroDBValidationError: If configuration is invalid
+            ZeroDBError: If creation fails
+
+        Example:
+            >>> client.create_vector_collection(
+            ...     "content_index",
+            ...     dimension=1536,
+            ...     similarity_metric="cosine"
+            ... )
+        """
+        url = self._build_url("collections", collection, "create")
+
+        payload = {
+            "type": "vector",
+            "config": {
+                "dimension": dimension,
+                "similarity_metric": similarity_metric
+            }
+        }
+
+        if metadata_schema:
+            payload["metadata_schema"] = metadata_schema
+
+        logger.info(
+            f"Creating vector collection '{collection}' "
+            f"(dimension={dimension}, metric={similarity_metric})"
+        )
+        response = self.session.post(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Vector collection '{collection}' created successfully")
+        return result
+
+    def insert_vector(
+        self,
+        collection: str,
+        vector: List[float],
+        metadata: Optional[Dict[str, Any]] = None,
+        document_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Insert a vector with metadata into a collection
+
+        Args:
+            collection: Name of the collection
+            vector: Vector embedding to insert (must match collection dimension)
+            metadata: Optional metadata to store with the vector
+            document_id: Optional custom document ID
+
+        Returns:
+            Insertion confirmation with document ID
+
+        Raises:
+            ZeroDBValidationError: If vector dimension doesn't match collection
+            ZeroDBError: If insertion fails
+
+        Example:
+            >>> embedding = [0.1, 0.2, ..., 0.9]  # 1536 dimensions
+            >>> client.insert_vector(
+            ...     "content_index",
+            ...     vector=embedding,
+            ...     metadata={"title": "Article", "source_type": "article"}
+            ... )
+        """
+        url = self._build_url("collections", collection, "vectors")
+
+        payload = {
+            "vector": vector,
+            "metadata": metadata or {}
+        }
+
+        if document_id:
+            payload["id"] = document_id
+
+        logger.info(
+            f"Inserting vector into collection '{collection}' "
+            f"(dimension={len(vector)})"
+        )
+        response = self.session.post(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Vector inserted successfully with ID: {result.get('id')}")
+        return result
+
     def vector_search(
         self,
         collection: str,
         query_vector: List[float],
         top_k: int = 10,
         filters: Optional[Dict[str, Any]] = None,
-        include_metadata: bool = True
+        include_metadata: bool = True,
+        min_score: Optional[float] = None
     ) -> Dict[str, Any]:
         """
-        Perform vector similarity search
+        Perform vector similarity search using cosine similarity
 
         Args:
             collection: Name of the collection
@@ -429,6 +544,7 @@ class ZeroDBClient:
             top_k: Number of similar documents to return (default: 10)
             filters: Optional filters to apply before search
             include_metadata: Include document metadata in results
+            min_score: Minimum similarity score threshold (0-1 for cosine)
 
         Returns:
             Search results with similar documents and similarity scores
@@ -436,19 +552,37 @@ class ZeroDBClient:
         Raises:
             ZeroDBValidationError: If vector is invalid
             ZeroDBError: If search fails
+
+        Example:
+            >>> query_embedding = [0.1, 0.2, ..., 0.9]  # 1536 dimensions
+            >>> results = client.vector_search(
+            ...     "content_index",
+            ...     query_vector=query_embedding,
+            ...     top_k=5,
+            ...     filters={"source_type": "event"}
+            ... )
+            >>> for result in results["results"]:
+            ...     print(f"Score: {result['score']}, Title: {result['metadata']['title']}")
         """
         url = self._build_url("collections", collection, "vector-search")
 
         payload = {
             "vector": query_vector,
             "top_k": top_k,
-            "include_metadata": include_metadata
+            "include_metadata": include_metadata,
+            "similarity_metric": "cosine"  # Explicitly set cosine similarity
         }
 
         if filters:
             payload["filters"] = filters
 
-        logger.info(f"Performing vector search in collection '{collection}' (top_k={top_k})")
+        if min_score is not None:
+            payload["min_score"] = min_score
+
+        logger.info(
+            f"Performing vector search in collection '{collection}' "
+            f"(top_k={top_k}, dimension={len(query_vector)})"
+        )
         response = self.session.post(
             url,
             json=payload,
@@ -459,6 +593,60 @@ class ZeroDBClient:
         result = self._handle_response(response)
         result_count = len(result.get("results", []))
         logger.info(f"Vector search returned {result_count} results")
+        return result
+
+    def batch_insert_vectors(
+        self,
+        collection: str,
+        vectors: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Insert multiple vectors in a batch operation for better performance
+
+        Args:
+            collection: Name of the collection
+            vectors: List of vector objects, each containing:
+                - vector: List[float] - The embedding vector
+                - metadata: Dict[str, Any] - Associated metadata
+                - id: Optional[str] - Custom document ID
+
+        Returns:
+            Batch insertion confirmation with inserted IDs
+
+        Raises:
+            ZeroDBValidationError: If vectors are invalid
+            ZeroDBError: If insertion fails
+
+        Example:
+            >>> vectors = [
+            ...     {
+            ...         "vector": [0.1, 0.2, ...],
+            ...         "metadata": {"title": "Doc 1", "source_type": "article"}
+            ...     },
+            ...     {
+            ...         "vector": [0.3, 0.4, ...],
+            ...         "metadata": {"title": "Doc 2", "source_type": "event"}
+            ...     }
+            ... ]
+            >>> client.batch_insert_vectors("content_index", vectors)
+        """
+        url = self._build_url("collections", collection, "vectors", "batch")
+
+        payload = {
+            "vectors": vectors
+        }
+
+        logger.info(f"Batch inserting {len(vectors)} vectors into collection '{collection}'")
+        response = self.session.post(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout * 2  # Longer timeout for batch operations
+        )
+
+        result = self._handle_response(response)
+        inserted_count = len(result.get("inserted_ids", []))
+        logger.info(f"Successfully inserted {inserted_count} vectors")
         return result
 
     # Object Storage Operations

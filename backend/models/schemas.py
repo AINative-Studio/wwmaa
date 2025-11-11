@@ -593,45 +593,168 @@ class SearchQuery(BaseDocument):
     clicked_result_ids: List[UUID] = Field(default_factory=list, description="Clicked result IDs")
     click_through_rate: Optional[float] = Field(None, ge=0, le=1, description="Click-through rate")
 
+    # Feedback - US-040
+    feedback_rating: Optional[str] = Field(None, max_length=20, description="Feedback rating: 'positive' or 'negative'")
+    feedback_text: Optional[str] = Field(None, max_length=2000, description="Optional text feedback from user")
+    feedback_timestamp: Optional[datetime] = Field(None, description="Timestamp when feedback was provided")
+    flagged_for_review: bool = Field(default=False, description="True if negative feedback flagged for admin review")
+
     # Metadata
     session_id: Optional[str] = Field(None, description="User session ID")
     user_agent: Optional[str] = Field(None, max_length=500, description="User agent string")
     ip_address: Optional[str] = Field(None, max_length=45, description="IP address")
+    ip_hash: Optional[str] = Field(None, max_length=64, description="SHA256 hash of IP address for privacy")
 
 
 # ============================================================================
-# CONTENT_INDEX COLLECTION
+# CONTENT_INDEX COLLECTION - Vector Search Schema
 # ============================================================================
+
+class SourceType(str, Enum):
+    """Content source types for vector search indexing"""
+    EVENT = "event"
+    ARTICLE = "article"
+    PROFILE = "profile"
+    VIDEO = "video"
+    TRAINING_SESSION = "training_session"
+    DOCUMENT = "document"
+
 
 class ContentIndex(BaseDocument):
-    """Searchable content with vector embeddings"""
-    content_type: str = Field(..., max_length=50, description="Content type (event/article/profile/etc)")
-    content_id: UUID = Field(..., description="Reference to source document")
+    """
+    Searchable content with vector embeddings for semantic search
 
-    # Content
-    title: str = Field(..., min_length=1, max_length=500, description="Content title")
-    body: str = Field(..., description="Content body text")
-    summary: Optional[str] = Field(None, max_length=1000, description="Content summary")
+    This model represents documents in the content_index collection,
+    which stores content chunks with their vector embeddings for
+    similarity-based semantic search using cosine similarity.
 
-    # Vector Search
-    embedding_vector: List[float] = Field(..., description="Content embedding vector (1536 dimensions)")
-    embedding_model: str = Field(default="text-embedding-ada-002", description="Embedding model used")
+    Vector Configuration:
+    - Dimensions: 1536 (OpenAI text-embedding-ada-002)
+    - Similarity Metric: Cosine similarity
+    - Collection: content_index
+    """
+    # Source Reference
+    source_type: SourceType = Field(
+        ...,
+        description="Type of content being indexed (event/article/profile/video)"
+    )
+    source_id: UUID = Field(..., description="Reference to source document ID")
 
-    # Metadata
-    author_id: Optional[UUID] = Field(None, description="Author user ID")
-    tags: List[str] = Field(default_factory=list, description="Content tags")
-    category: Optional[str] = Field(None, max_length=100, description="Content category")
+    # URL and Identification
+    url: Optional[str] = Field(None, max_length=1000, description="URL to the content")
+
+    # Content Fields
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Content title for display in search results"
+    )
+    content_chunk: str = Field(
+        ...,
+        min_length=1,
+        description="Text content chunk (optimally 200-1000 tokens for embeddings)"
+    )
+    summary: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Brief summary of content"
+    )
+
+    # Vector Embedding
+    embedding: List[float] = Field(
+        ...,
+        description="Content embedding vector (1536 dimensions for OpenAI ada-002)",
+        min_length=1536,
+        max_length=1536
+    )
+    embedding_model: str = Field(
+        default="text-embedding-ada-002",
+        description="Model used to generate embeddings"
+    )
+
+    # Metadata for Search Filtering
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata for filtering (location, date, tags, etc.)"
+    )
+
+    # Author/Owner
+    author_id: Optional[UUID] = Field(None, description="Content author/creator user ID")
+
+    # Categorization
+    tags: List[str] = Field(
+        default_factory=list,
+        description="Content tags for filtering"
+    )
+    category: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Content category"
+    )
 
     # Access Control
-    visibility: str = Field(default="public", max_length=50, description="Visibility level")
+    visibility: str = Field(
+        default="public",
+        max_length=50,
+        description="Visibility level (public/members_only/private)"
+    )
 
     # Search Optimization
-    keywords: List[str] = Field(default_factory=list, description="Keywords for search")
-    search_weight: float = Field(default=1.0, ge=0, le=10, description="Search result weight")
+    keywords: List[str] = Field(
+        default_factory=list,
+        description="Keywords extracted from content for hybrid search"
+    )
+    search_weight: float = Field(
+        default=1.0,
+        ge=0,
+        le=10,
+        description="Search result ranking weight (higher = more important)"
+    )
 
-    # Publishing
-    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
-    is_active: bool = Field(default=True, description="Active in search index")
+    # Status and Publishing
+    published_at: Optional[datetime] = Field(
+        None,
+        description="Publication timestamp"
+    )
+    is_active: bool = Field(
+        default=True,
+        description="Whether this content is active in search index"
+    )
+
+    # Performance Tracking
+    search_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of times this content appeared in search results"
+    )
+    click_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of times this content was clicked from search results"
+    )
+
+    @field_validator('embedding')
+    @classmethod
+    def validate_embedding_dimension(cls, v):
+        """Validate embedding vector has exactly 1536 dimensions"""
+        if len(v) != 1536:
+            raise ValueError(
+                f"Embedding vector must have exactly 1536 dimensions, got {len(v)}"
+            )
+        return v
+
+    @field_validator('content_chunk')
+    @classmethod
+    def validate_content_chunk_length(cls, v):
+        """Validate content chunk is not too short or too long"""
+        if len(v) < 10:
+            raise ValueError("Content chunk must be at least 10 characters")
+        if len(v) > 8000:
+            raise ValueError(
+                "Content chunk should not exceed 8000 characters for optimal embeddings"
+            )
+        return v
 
 
 # ============================================================================

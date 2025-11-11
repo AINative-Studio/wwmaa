@@ -1,6 +1,24 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
 
+// Mock react-markdown to avoid ES module issues
+jest.mock('react-markdown', () => {
+  return function ReactMarkdown({ children }) {
+    return children;
+  };
+});
+
+// Mock react-syntax-highlighter
+jest.mock('react-syntax-highlighter', () => ({
+  Prism: function SyntaxHighlighter({ children }) {
+    return children;
+  },
+}));
+
+jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
+  oneDark: {},
+}));
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
