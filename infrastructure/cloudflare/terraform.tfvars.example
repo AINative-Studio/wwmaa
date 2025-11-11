@@ -1,0 +1,16 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to git (it contains sensitive data)
+
+# Cloudflare Account ID
+# Find at: https://dash.cloudflare.com/ (right sidebar)
+cloudflare_account_id = "your_cloudflare_account_id_here"
+
+# Domain name
+domain = "wwmaa.com"
+
+# Environment (production or staging)
+environment = "production"
+
+# Note: CLOUDFLARE_API_TOKEN should be set as environment variable:
+# export CLOUDFLARE_API_TOKEN="your_api_token_here"

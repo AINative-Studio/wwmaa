@@ -135,6 +135,14 @@ class AttendanceStatus(str, Enum):
     EXCUSED = "excused"
 
 
+class ReactionType(str, Enum):
+    """Chat emoji reaction types"""
+    THUMBS_UP = "👍"
+    CLAP = "👏"
+    HEART = "❤️"
+    FIRE = "🔥"
+
+
 class SessionStatus(str, Enum):
     """Training session status"""
     SCHEDULED = "scheduled"
@@ -1038,6 +1046,9 @@ def get_all_models():
         "newsletter_subscriptions": NewsletterSubscription,
         "newsletter_subscribers": NewsletterSubscriber,
         "beehiiv_config": BeeHiivConfig,
+        "session_chat_messages": SessionChatMessage,
+        "session_mutes": SessionMute,
+        "session_raised_hands": SessionRaisedHand,
     }
 
 
@@ -1219,3 +1230,80 @@ class BeeHiivConfig(BaseDocument):
     # Metadata
     setup_completed_at: Optional[datetime] = Field(None, description="Initial setup completion timestamp")
     setup_by: Optional[UUID] = Field(None, description="Admin who completed setup")
+
+
+# ============================================================================
+# SESSION_CHAT COLLECTION - US-050: Chat & Interaction Features
+# ============================================================================
+
+class SessionChatMessage(BaseDocument):
+    """
+    Training session chat message with reactions and moderation
+
+    Supports real-time chat, emoji reactions, private messaging, and moderation
+    controls for live training sessions.
+    """
+    session_id: UUID = Field(..., description="Reference to training_sessions collection")
+    user_id: UUID = Field(..., description="Reference to users collection (message sender)")
+    user_name: str = Field(..., min_length=1, max_length=200, description="Display name of sender")
+
+    # Message Content
+    message: str = Field(..., min_length=1, max_length=2000, description="Chat message content")
+
+    # Private Messaging
+    is_private: bool = Field(default=False, description="Whether this is a private message")
+    recipient_id: Optional[UUID] = Field(None, description="Reference to users collection (private message recipient)")
+    recipient_name: Optional[str] = Field(None, max_length=200, description="Display name of recipient")
+
+    # Reactions
+    reactions: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Emoji reactions map: {'👍': 5, '👏': 3, '❤️': 2, '🔥': 1}"
+    )
+
+    # Moderation
+    is_deleted: bool = Field(default=False, description="Whether message has been deleted")
+    deleted_at: Optional[datetime] = Field(None, description="Deletion timestamp")
+    deleted_by: Optional[UUID] = Field(None, description="Reference to users collection (moderator who deleted)")
+
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+
+
+class SessionMute(BaseDocument):
+    """
+    User mute record for chat moderation
+
+    Tracks muted users in training sessions with temporary or permanent mutes.
+    """
+    session_id: UUID = Field(..., description="Reference to training_sessions collection")
+    user_id: UUID = Field(..., description="Reference to users collection (muted user)")
+    muted_by: UUID = Field(..., description="Reference to users collection (moderator)")
+
+    # Mute Details
+    muted_until: Optional[datetime] = Field(None, description="Mute expiration (null for permanent)")
+    reason: Optional[str] = Field(None, max_length=500, description="Reason for muting")
+
+    # Status
+    is_active: bool = Field(default=True, description="Whether mute is currently active")
+    unmuted_at: Optional[datetime] = Field(None, description="Unmute timestamp")
+
+    # Metadata
+    muted_at: datetime = Field(default_factory=datetime.utcnow, description="Mute timestamp")
+
+
+class SessionRaisedHand(BaseDocument):
+    """
+    Raised hand record for session interaction
+
+    Tracks when participants raise their hand to ask questions or get attention.
+    """
+    session_id: UUID = Field(..., description="Reference to training_sessions collection")
+    user_id: UUID = Field(..., description="Reference to users collection (participant)")
+    user_name: str = Field(..., min_length=1, max_length=200, description="Display name of participant")
+
+    # Status
+    is_active: bool = Field(default=True, description="Whether hand is currently raised")
+    raised_at: datetime = Field(default_factory=datetime.utcnow, description="When hand was raised")
+    lowered_at: Optional[datetime] = Field(None, description="When hand was lowered")
+    acknowledged_by: Optional[UUID] = Field(None, description="Reference to users collection (instructor who acknowledged)")

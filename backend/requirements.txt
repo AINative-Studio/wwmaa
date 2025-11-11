@@ -20,6 +20,7 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
+websockets==12.0  # WebSocket support for real-time chat
 
 # Database & Caching
 redis==5.0.1
@@ -56,3 +57,29 @@ Pillow==10.1.0
 # OpenAI Integration (for content indexing)
 openai==1.6.1
 tiktoken==0.5.2
+
+# Profanity Filter (for chat moderation)
+better-profanity==0.7.0
+
+# Performance Monitoring (Prometheus)
+prometheus-client==0.19.0
+prometheus-fastapi-instrumentator==6.1.0
+
+# OpenTelemetry Instrumentation (Sprint 7 - US-065)
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-requests==0.42b0
+opentelemetry-instrumentation-redis==0.42b0
+opentelemetry-exporter-otlp==1.21.0
+opentelemetry-exporter-otlp-proto-grpc==1.21.0
+opentelemetry-exporter-otlp-proto-http==1.21.0
+
+# Error Tracking & Alerting (Sprint 7 - US-066)
+sentry-sdk[fastapi]==1.40.0
+
+# Security & Input Validation (Sprint 7 - US-070)
+bleach==6.1.0  # HTML sanitization (XSS prevention)
+python-magic==0.4.27  # File type detection (magic bytes verification)
+dnspython==2.4.2  # DNS checks for email validation
+pip-audit==2.6.1  # Security vulnerability scanning

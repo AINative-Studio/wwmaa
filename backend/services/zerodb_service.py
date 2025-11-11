@@ -4,6 +4,11 @@ ZeroDB Client Wrapper Service
 Provides a comprehensive Python client for interacting with ZeroDB API.
 Includes CRUD operations, vector search, object storage, connection pooling,
 retry logic with exponential backoff, and comprehensive error handling.
+
+OpenTelemetry Instrumentation:
+- All ZeroDB operations are traced with custom spans
+- Span names follow pattern: zerodb.{operation}
+- Attributes include: collection_name, document_id, operation_type, filter_query
 """
 
 import logging
@@ -23,6 +28,14 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# OpenTelemetry imports (gracefully handle if not available)
+try:
+    from backend.observability.tracing_utils import with_span, add_span_attributes, set_span_error
+    _tracing_available = True
+except ImportError:
+    logger.debug("OpenTelemetry tracing not available for ZeroDB service")
+    _tracing_available = False
 
 
 class ZeroDBError(Exception):
@@ -228,6 +241,33 @@ class ZeroDBClient:
             ZeroDBValidationError: If data is invalid
             ZeroDBError: If creation fails
         """
+        if not _tracing_available:
+            return self._create_document_impl(collection, data, document_id)
+
+        with with_span(
+            "zerodb.create_document",
+            attributes={
+                "db.system": "zerodb",
+                "db.operation": "create",
+                "db.collection": collection,
+                "document.id": document_id,
+            }
+        ) as span:
+            try:
+                result = self._create_document_impl(collection, data, document_id)
+                add_span_attributes(**{"document.created_id": result.get("id")})
+                return result
+            except Exception as e:
+                set_span_error(span, e)
+                raise
+
+    def _create_document_impl(
+        self,
+        collection: str,
+        data: Dict[str, Any],
+        document_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Implementation of create_document"""
         url = self._build_url("collections", collection, "documents")
 
         payload = {"data": data}

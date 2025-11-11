@@ -1,0 +1,254 @@
+# Prometheus Alerting Rules for WWMAA Backend
+#
+# These rules define SLO violations and performance degradation alerts
+# that should trigger notifications to the development team.
+#
+# Usage:
+#   Load these rules into Prometheus configuration:
+#   prometheus.yml:
+#     rule_files:
+#       - "prometheus-alerts.yml"
+
+groups:
+  - name: api_performance
+    interval: 30s
+    rules:
+      # API Latency SLO: p95 latency should be < 1 second
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API p95 latency exceeds 1 second"
+          description: "API endpoint {{$labels.endpoint}} has p95 latency of {{$value}}s (threshold: 1.0s)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/high-api-latency"
+
+      # Critical API Latency: p95 latency > 5 seconds
+      - alert: CriticalAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "CRITICAL: API p95 latency exceeds 5 seconds"
+          description: "API endpoint {{$labels.endpoint}} has p95 latency of {{$value}}s (critical threshold: 5.0s)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/critical-api-latency"
+
+      # API Error Rate SLO: error rate should be < 1%
+      - alert: HighAPIErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
+          sum(rate(http_requests_total[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API error rate exceeds 1%"
+          description: "API has {{$value | humanizePercentage}} error rate (threshold: 1%)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/high-error-rate"
+
+      # Critical API Error Rate: > 5%
+      - alert: CriticalAPIErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m])) /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "CRITICAL: API error rate exceeds 5%"
+          description: "API has {{$value | humanizePercentage}} error rate (critical threshold: 5%)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/critical-error-rate"
+
+      # API Throughput Drop: sudden drop in request rate
+      - alert: APIThroughputDrop
+        expr: |
+          (
+            sum(rate(http_requests_total[5m]))
+            /
+            sum(rate(http_requests_total[5m] offset 1h))
+          ) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API throughput dropped by 50%"
+          description: "API request rate is {{$value | humanizePercentage}} of normal (last hour)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/throughput-drop"
+
+  - name: zerodb_performance
+    interval: 30s
+    rules:
+      # ZeroDB Query Latency SLO: p95 should be < 100ms
+      - alert: SlowZeroDBQueries
+        expr: histogram_quantile(0.95, rate(zerodb_query_duration_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "ZeroDB p95 query latency exceeds 100ms"
+          description: "Collection {{$labels.collection}} operation {{$labels.operation}} has p95 latency of {{$value}}s"
+          runbook_url: "https://docs.wwmaa.com/runbooks/slow-zerodb-queries"
+
+      # High rate of slow queries (> 1 second)
+      - alert: HighSlowQueryRate
+        expr: rate(zerodb_slow_queries_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High rate of slow ZeroDB queries"
+          description: "{{$labels.collection}}.{{$labels.operation}} has {{$value}} slow queries per second"
+          runbook_url: "https://docs.wwmaa.com/runbooks/high-slow-query-rate"
+
+      # ZeroDB Error Rate
+      - alert: HighZeroDBErrorRate
+        expr: rate(zerodb_query_errors_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High ZeroDB error rate"
+          description: "{{$labels.collection}}.{{$labels.operation}} has {{$value}} errors per second"
+          runbook_url: "https://docs.wwmaa.com/runbooks/zerodb-errors"
+
+  - name: external_api_performance
+    interval: 30s
+    rules:
+      # External API Latency: p95 should be < 3 seconds
+      - alert: SlowExternalAPI
+        expr: histogram_quantile(0.95, rate(external_api_duration_seconds_bucket[5m])) > 3.0
+        for: 5m
+        labels:
+          severity: warning
+          component: external_api
+        annotations:
+          summary: "External API {{$labels.service}} is slow"
+          description: "{{$labels.service}}.{{$labels.operation}} has p95 latency of {{$value}}s (threshold: 3.0s)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/slow-external-api"
+
+      # Critical External API Latency: > 10 seconds
+      - alert: CriticalExternalAPILatency
+        expr: histogram_quantile(0.95, rate(external_api_duration_seconds_bucket[5m])) > 10.0
+        for: 2m
+        labels:
+          severity: critical
+          component: external_api
+        annotations:
+          summary: "CRITICAL: External API {{$labels.service}} latency > 10s"
+          description: "{{$labels.service}}.{{$labels.operation}} has p95 latency of {{$value}}s"
+          runbook_url: "https://docs.wwmaa.com/runbooks/critical-external-api"
+
+      # High External API Error Rate
+      - alert: HighExternalAPIErrorRate
+        expr: rate(external_api_errors_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: external_api
+        annotations:
+          summary: "High error rate for external API {{$labels.service}}"
+          description: "{{$labels.service}}.{{$labels.operation}} has {{$value}} errors per second"
+          runbook_url: "https://docs.wwmaa.com/runbooks/external-api-errors"
+
+      # Stripe API Errors (critical for payment processing)
+      - alert: StripeAPIErrors
+        expr: rate(external_api_errors_total{service="stripe"}[5m]) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          component: payment
+        annotations:
+          summary: "CRITICAL: Stripe API errors detected"
+          description: "Stripe {{$labels.operation}} has {{$value}} errors per second"
+          runbook_url: "https://docs.wwmaa.com/runbooks/stripe-api-errors"
+
+  - name: cache_performance
+    interval: 30s
+    rules:
+      # Low Cache Hit Ratio: should be > 70%
+      - alert: LowCacheHitRatio
+        expr: cache_hit_ratio < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Cache hit ratio below 70%"
+          description: "Cache hit ratio is {{$value | humanizePercentage}} (threshold: 70%)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/low-cache-hit-ratio"
+
+      # Critical Cache Hit Ratio: < 50%
+      - alert: CriticalCacheHitRatio
+        expr: cache_hit_ratio < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "CRITICAL: Cache hit ratio below 50%"
+          description: "Cache hit ratio is {{$value | humanizePercentage}}"
+          runbook_url: "https://docs.wwmaa.com/runbooks/critical-cache-hit-ratio"
+
+  - name: background_jobs
+    interval: 30s
+    rules:
+      # Background Job Failures
+      - alert: BackgroundJobFailures
+        expr: rate(background_job_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: background_jobs
+        annotations:
+          summary: "Background job {{$labels.job_name}} failing"
+          description: "Job {{$labels.job_name}} has {{$value}} failures per second (error: {{$labels.error_type}})"
+          runbook_url: "https://docs.wwmaa.com/runbooks/background-job-failures"
+
+      # Long Running Background Jobs
+      - alert: LongRunningBackgroundJob
+        expr: histogram_quantile(0.95, rate(background_job_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          component: background_jobs
+        annotations:
+          summary: "Background job {{$labels.job_name}} running too long"
+          description: "Job {{$labels.job_name}} p95 duration is {{$value}}s (threshold: 300s)"
+          runbook_url: "https://docs.wwmaa.com/runbooks/long-running-job"
+
+  - name: system_health
+    interval: 30s
+    rules:
+      # No Metrics Being Reported
+      - alert: MetricsNotReported
+        expr: up{job="wwmaa-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "CRITICAL: Backend metrics not being reported"
+          description: "Backend service appears to be down or unreachable"
+          runbook_url: "https://docs.wwmaa.com/runbooks/service-down"
+
+      # High Active Requests (potential resource exhaustion)
+      - alert: HighActiveRequests
+        expr: active_requests > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High number of active requests"
+          description: "{{$value}} active requests (threshold: 100). Possible resource exhaustion."
+          runbook_url: "https://docs.wwmaa.com/runbooks/high-active-requests"

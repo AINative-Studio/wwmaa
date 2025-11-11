@@ -1,15 +1,22 @@
 """
-WWMAA Authorization Middleware Package
+WWMAA Middleware Package
 
-This package provides authentication and authorization middleware for the WWMAA backend.
+This package provides authentication, authorization, error tracking, and
+metrics middleware for the WWMAA backend.
 
 Modules:
 - auth_middleware: JWT authentication and role-based access control
 - permissions: Resource-level permission checks
+- error_tracking_middleware: Automatic error context tracking
+- metrics_middleware: Request metrics and monitoring
 
 Quick Start:
     from backend.middleware.auth_middleware import CurrentUser, RoleChecker
     from backend.middleware.permissions import can_edit_event, can_approve_application
+    from backend.middleware.error_tracking_middleware import (
+        ErrorTrackingMiddleware,
+        track_business_operation
+    )
 
     # Use in FastAPI routes
     @app.get("/profile")
@@ -19,6 +26,9 @@ Quick Start:
     # Check resource permissions
     if can_edit_event(current_user, event):
         # Allow edit
+
+    # Track business operations
+    track_business_operation("payment_processed", {"amount": 100})
 """
 
 from backend.middleware.auth_middleware import (
@@ -79,6 +89,14 @@ from backend.middleware.permissions import (
     filter_by_visibility,
 )
 
+from backend.middleware.error_tracking_middleware import (
+    ErrorTrackingMiddleware,
+    track_business_operation,
+    track_external_api_call,
+    track_database_operation,
+    track_cache_operation,
+)
+
 __all__ = [
     # FastAPI Dependencies
     "CurrentUser",
@@ -133,4 +151,11 @@ __all__ = [
     "require_permission",
     "require_ownership",
     "filter_by_visibility",
+
+    # Error tracking middleware
+    "ErrorTrackingMiddleware",
+    "track_business_operation",
+    "track_external_api_call",
+    "track_database_operation",
+    "track_cache_operation",
 ]

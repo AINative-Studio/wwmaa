@@ -37,7 +37,7 @@ from datetime import datetime
 from uuid import UUID
 
 from backend.config import settings
-from backend.services.zerodb_service import get_zerodb_service
+from backend.services.zerodb_service import get_zerodb_client
 from backend.models.cloudflare_schemas import (
     WebhookRecordingReadyEvent,
     RecordingStatus,
@@ -143,7 +143,7 @@ async def cloudflare_recording_webhook(
     Raises:
         HTTPException: For signature verification failures or processing errors
     """
-    zerodb = get_zerodb_service()
+    zerodb = get_zerodb_client()
 
     # Get raw request body for signature verification
     try:
@@ -410,7 +410,7 @@ async def cloudflare_stream_webhook(
     Raises:
         HTTPException: For signature verification failures
     """
-    zerodb = get_zerodb_service()
+    zerodb = get_zerodb_client()
 
     # Get raw request body for signature verification
     try:

@@ -21,6 +21,7 @@ Features:
 - Query logging for analytics
 - Comprehensive error handling
 - Performance monitoring
+- OpenTelemetry distributed tracing (US-065)
 
 Dependencies:
 - US-035: Vector Search Service
@@ -48,6 +49,14 @@ logger = logging.getLogger(__name__)
 
 # Get settings
 settings = get_settings()
+
+# OpenTelemetry imports (gracefully handle if not available)
+try:
+    from backend.observability.tracing_utils import with_span, add_span_attributes, set_span_error, add_user_context
+    _tracing_available = True
+except ImportError:
+    logger.debug("OpenTelemetry tracing not available for query search service")
+    _tracing_available = False
 
 
 class QuerySearchError(Exception):
@@ -128,9 +137,18 @@ class QuerySearchService:
         cached = False
 
         try:
+            # Add user context to trace
+            if _tracing_available and user_id:
+                add_user_context(user_id=user_id)
+
             # Step 1: Normalize query
             logger.info(f"[Step 1/11] Normalizing query: '{query[:50]}...'")
-            normalized_query = self._normalize_query(query)
+            if _tracing_available:
+                with with_span("search.normalize", attributes={"step": 1, "query_length": len(query)}) as span:
+                    normalized_query = self._normalize_query(query)
+                    add_span_attributes(**{"normalized_query_length": len(normalized_query)})
+            else:
+                normalized_query = self._normalize_query(query)
             step_1_time = time.time()
             logger.debug(f"Step 1 completed in {int((step_1_time - start_time) * 1000)}ms")
 
@@ -141,7 +159,13 @@ class QuerySearchService:
             # Step 3: Check cache
             if not bypass_cache:
                 logger.info("[Step 3/11] Checking cache")
-                cached_result = self._get_cached_result(normalized_query)
+                if _tracing_available:
+                    with with_span("search.cache_check", attributes={"step": 3}) as span:
+                        cached_result = self._get_cached_result(normalized_query)
+                        add_span_attributes(**{"cache_hit": cached_result is not None})
+                else:
+                    cached_result = self._get_cached_result(normalized_query)
+
                 if cached_result:
                     logger.info("Cache hit - returning cached result")
                     cached_result["cached"] = True
@@ -155,10 +179,21 @@ class QuerySearchService:
             # Step 4: Generate query embedding
             logger.info("[Step 4/11] Generating query embedding")
             try:
-                query_embedding = self.embedding_service.generate_embedding(
-                    text=normalized_query,
-                    use_cache=True
-                )
+                if _tracing_available:
+                    with with_span("search.generate_embedding", attributes={"step": 4, "query": normalized_query}) as span:
+                        query_embedding = self.embedding_service.generate_embedding(
+                            text=normalized_query,
+                            use_cache=True
+                        )
+                        add_span_attributes(**{
+                            "embedding_dimensions": len(query_embedding),
+                            "model": "text-embedding-3-small"
+                        })
+                else:
+                    query_embedding = self.embedding_service.generate_embedding(
+                        text=normalized_query,
+                        use_cache=True
+                    )
                 logger.info(f"Query embedding generated (dimension: {len(query_embedding)})")
             except EmbeddingError as e:
                 logger.error(f"Embedding generation failed: {e}")
@@ -169,11 +204,24 @@ class QuerySearchService:
             # Step 5: ZeroDB vector search
             logger.info(f"[Step 5/11] Performing vector search (top_k={self.top_k_results})")
             try:
-                search_results = self.vector_search_service.search_martial_arts_content(
-                    query_vector=query_embedding,
-                    top_k=self.top_k_results,
-                    content_types=None  # Search all types
-                )
+                if _tracing_available:
+                    with with_span("search.vector_search", attributes={
+                        "step": 5,
+                        "top_k": self.top_k_results,
+                        "embedding_dimension": len(query_embedding)
+                    }) as span:
+                        search_results = self.vector_search_service.search_martial_arts_content(
+                            query_vector=query_embedding,
+                            top_k=self.top_k_results,
+                            content_types=None  # Search all types
+                        )
+                        add_span_attributes(**{"result_count": len(search_results)})
+                else:
+                    search_results = self.vector_search_service.search_martial_arts_content(
+                        query_vector=query_embedding,
+                        top_k=self.top_k_results,
+                        content_types=None  # Search all types
+                    )
                 logger.info(f"Vector search returned {len(search_results)} results")
             except VectorSearchError as e:
                 logger.error(f"Vector search failed: {e}")
@@ -184,14 +232,33 @@ class QuerySearchService:
             # Step 6 & 7: Send context to AI Registry and get LLM answer
             logger.info("[Step 6-7/11] Generating AI answer with context")
             try:
-                ai_response = self.ai_registry_service.generate_answer(
-                    query=query,  # Use original query, not normalized
-                    context=search_results,
-                    model="gpt-4o-mini",
-                    temperature=0.7,
-                    max_tokens=1000
-                )
-                answer = ai_response["answer"]
+                if _tracing_available:
+                    with with_span("search.generate_answer", attributes={
+                        "step": 6,
+                        "model": "gpt-4o-mini",
+                        "context_count": len(search_results)
+                    }) as span:
+                        ai_response = self.ai_registry_service.generate_answer(
+                            query=query,  # Use original query, not normalized
+                            context=search_results,
+                            model="gpt-4o-mini",
+                            temperature=0.7,
+                            max_tokens=1000
+                        )
+                        answer = ai_response["answer"]
+                        add_span_attributes(**{
+                            "tokens_used": ai_response.get('tokens_used', 0),
+                            "answer_length": len(answer)
+                        })
+                else:
+                    ai_response = self.ai_registry_service.generate_answer(
+                        query=query,  # Use original query, not normalized
+                        context=search_results,
+                        model="gpt-4o-mini",
+                        temperature=0.7,
+                        max_tokens=1000
+                    )
+                    answer = ai_response["answer"]
                 logger.info(f"AI answer generated (tokens: {ai_response.get('tokens_used', 0)})")
             except AIRegistryError as e:
                 logger.error(f"AI answer generation failed: {e}")
@@ -203,7 +270,15 @@ class QuerySearchService:
 
             # Step 8: Attach relevant media
             logger.info("[Step 8/11] Attaching relevant media")
-            media = self._attach_media(search_results)
+            if _tracing_available:
+                with with_span("search.attach_media", attributes={"step": 8}) as span:
+                    media = self._attach_media(search_results)
+                    add_span_attributes(**{
+                        "videos_count": len(media.get('videos', [])),
+                        "images_count": len(media.get('images', []))
+                    })
+            else:
+                media = self._attach_media(search_results)
             logger.info(
                 f"Attached {len(media.get('videos', []))} videos, "
                 f"{len(media.get('images', []))} images"
@@ -237,22 +312,42 @@ class QuerySearchService:
             # Step 9: Cache result
             if not bypass_cache:
                 logger.info("[Step 9/11] Caching result")
-                self._cache_result(normalized_query, response)
+                if _tracing_available:
+                    with with_span("search.cache_write", attributes={"step": 9}) as span:
+                        self._cache_result(normalized_query, response)
+                else:
+                    self._cache_result(normalized_query, response)
             else:
                 logger.info("[Step 9/11] Skipping cache (bypass enabled)")
             step_9_time = time.time()
 
             # Step 10: Log query
             logger.info("[Step 10/11] Logging query to ZeroDB")
-            self._log_query(
-                query=query,
-                normalized_query=normalized_query,
-                user_id=user_id,
-                ip_address=ip_address,
-                latency_ms=response["latency_ms"],
-                cached=cached,
-                error=None
-            )
+            if _tracing_available:
+                with with_span("search.log_query", attributes={
+                    "step": 10,
+                    "latency_ms": response["latency_ms"],
+                    "cached": cached
+                }) as span:
+                    self._log_query(
+                        query=query,
+                        normalized_query=normalized_query,
+                        user_id=user_id,
+                        ip_address=ip_address,
+                        latency_ms=response["latency_ms"],
+                        cached=cached,
+                        error=None
+                    )
+            else:
+                self._log_query(
+                    query=query,
+                    normalized_query=normalized_query,
+                    user_id=user_id,
+                    ip_address=ip_address,
+                    latency_ms=response["latency_ms"],
+                    cached=cached,
+                    error=None
+                )
             step_10_time = time.time()
 
             # Step 11: Return formatted response

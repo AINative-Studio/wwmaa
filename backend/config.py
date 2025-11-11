@@ -287,6 +287,112 @@ class Settings(BaseSettings):
     )
 
     # ==========================================
+    # OpenTelemetry Configuration (Sprint 7 - US-065)
+    # ==========================================
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = Field(
+        default="",
+        description="OpenTelemetry OTLP exporter endpoint (e.g., https://api.honeycomb.io)"
+    )
+
+    OTEL_EXPORTER_OTLP_HEADERS: str = Field(
+        default="",
+        description="OpenTelemetry OTLP headers (e.g., x-honeycomb-team=api_key)"
+    )
+
+    OTEL_SERVICE_NAME: str = Field(
+        default="wwmaa-backend",
+        description="OpenTelemetry service name"
+    )
+
+    OTEL_DEPLOYMENT_ENVIRONMENT: str = Field(
+        default="",
+        description="OpenTelemetry deployment environment (uses PYTHON_ENV if not set)"
+    )
+
+    OTEL_TRACES_SAMPLER: str = Field(
+        default="parentbased_traceidratio",
+        description="OpenTelemetry trace sampling strategy"
+    )
+
+    OTEL_TRACES_SAMPLER_ARG: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="OpenTelemetry sampling ratio (0.0-1.0)"
+    )
+
+    OTEL_EXPORTER_TYPE: str = Field(
+        default="grpc",
+        description="OpenTelemetry exporter type (grpc, http, or console)"
+    )
+
+    # ==========================================
+    # Sentry Error Tracking Configuration (Sprint 7 - US-066)
+    # ==========================================
+    SENTRY_DSN: str = Field(
+        default="",
+        description="Sentry DSN for error tracking (optional)"
+    )
+
+    SENTRY_ENVIRONMENT: str = Field(
+        default="",
+        description="Sentry environment (defaults to PYTHON_ENV if not set)"
+    )
+
+    SENTRY_RELEASE: str = Field(
+        default="",
+        description="Sentry release version (auto-detected from git if not set)"
+    )
+
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Sentry traces sample rate for performance monitoring (0.0-1.0)"
+    )
+
+    SENTRY_PROFILES_SAMPLE_RATE: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Sentry profiles sample rate for performance profiling (0.0-1.0)"
+    )
+
+    # ==========================================
+    # Security Headers Configuration (Sprint 7 - US-069)
+    # ==========================================
+    SECURITY_HEADERS_ENABLED: bool = Field(
+        default=True,
+        description="Enable security headers middleware"
+    )
+
+    CSP_REPORT_ONLY: bool = Field(
+        default=False,
+        description="Use Content-Security-Policy-Report-Only instead of enforcement"
+    )
+
+    CSP_REPORT_URI: str = Field(
+        default="/api/csp-report",
+        description="URI for CSP violation reports"
+    )
+
+    HSTS_MAX_AGE: int = Field(
+        default=31536000,
+        ge=0,
+        description="HSTS max-age in seconds (31536000 = 1 year)"
+    )
+
+    HSTS_INCLUDE_SUBDOMAINS: bool = Field(
+        default=True,
+        description="Include subdomains in HSTS policy"
+    )
+
+    HSTS_PRELOAD: bool = Field(
+        default=True,
+        description="Make HSTS preload eligible"
+    )
+
+    # ==========================================
     # Backend Configuration
     # ==========================================
     PYTHON_BACKEND_URL: str = Field(
@@ -302,6 +408,31 @@ class Settings(BaseSettings):
         ge=0,
         le=100,
         description="Minimum test coverage percentage required"
+    )
+
+    # ==========================================
+    # Performance Monitoring Configuration (Sprint 7 - US-067)
+    # ==========================================
+    PROMETHEUS_ENABLED: bool = Field(
+        default=True,
+        description="Enable Prometheus metrics collection"
+    )
+
+    METRICS_ENDPOINT: str = Field(
+        default="/metrics",
+        description="Endpoint for Prometheus metrics"
+    )
+
+    SLOW_QUERY_THRESHOLD_SECONDS: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Threshold in seconds for slow query logging (0.1-10.0)"
+    )
+
+    SLOW_QUERY_LOG_FILE: str = Field(
+        default="/var/log/wwmaa/slow_queries.log",
+        description="Path to slow query log file"
     )
 
     # ==========================================
@@ -462,6 +593,44 @@ class Settings(BaseSettings):
             "api_token": api_token,
             "app_id": self.CLOUDFLARE_CALLS_APP_ID,
             "webhook_secret": self.CLOUDFLARE_WEBHOOK_SECRET
+        }
+
+    def get_opentelemetry_config(self) -> dict:
+        """
+        Get OpenTelemetry configuration as a dictionary.
+
+        Returns:
+            Dictionary with OpenTelemetry configuration
+        """
+        return {
+            "endpoint": self.OTEL_EXPORTER_OTLP_ENDPOINT,
+            "headers": self.OTEL_EXPORTER_OTLP_HEADERS,
+            "service_name": self.OTEL_SERVICE_NAME,
+            "environment": self.OTEL_DEPLOYMENT_ENVIRONMENT or self.PYTHON_ENV,
+            "sampler": self.OTEL_TRACES_SAMPLER,
+            "sampler_arg": self.OTEL_TRACES_SAMPLER_ARG,
+            "exporter_type": self.OTEL_EXPORTER_TYPE,
+        }
+
+    @property
+    def is_tracing_enabled(self) -> bool:
+        """Check if OpenTelemetry tracing is enabled."""
+        return bool(self.OTEL_EXPORTER_OTLP_ENDPOINT) or self.OTEL_EXPORTER_TYPE == "console"
+
+    def get_security_headers_config(self) -> dict:
+        """
+        Get security headers configuration as a dictionary.
+
+        Returns:
+            Dictionary with security headers configuration
+        """
+        return {
+            "enabled": self.SECURITY_HEADERS_ENABLED,
+            "csp_report_only": self.CSP_REPORT_ONLY,
+            "csp_report_uri": self.CSP_REPORT_URI,
+            "hsts_max_age": self.HSTS_MAX_AGE,
+            "hsts_include_subdomains": self.HSTS_INCLUDE_SUBDOMAINS,
+            "hsts_preload": self.HSTS_PRELOAD,
         }
 
 
