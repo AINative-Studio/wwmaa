@@ -24,7 +24,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
-from backend.services.zerodb_service import get_zerodb_service
+from backend.services.zerodb_service import get_zerodb_client
 from backend.models.schemas import Article, ArticleStatus
 
 
@@ -66,7 +66,7 @@ async def list_blog_posts(
         Paginated list of blog posts with metadata
     """
     try:
-        zerodb = get_zerodb_service()
+        zerodb = get_zerodb_client()
 
         # Build query filters
         filters = {
@@ -146,7 +146,7 @@ async def get_blog_post_by_slug(slug: str):
         HTTPException: If post not found
     """
     try:
-        zerodb = get_zerodb_service()
+        zerodb = get_zerodb_client()
 
         # Find post by slug
         posts = zerodb.query_documents(
@@ -209,7 +209,7 @@ async def list_blog_categories():
         List of category objects with post counts
     """
     try:
-        zerodb = get_zerodb_service()
+        zerodb = get_zerodb_client()
 
         # Fetch all published posts
         posts = zerodb.query_documents(
@@ -260,7 +260,7 @@ async def list_blog_tags():
         List of tag objects with post counts
     """
     try:
-        zerodb = get_zerodb_service()
+        zerodb = get_zerodb_client()
 
         # Fetch all published posts
         posts = zerodb.query_documents(
@@ -324,7 +324,7 @@ async def get_related_posts(
         HTTPException: If post not found
     """
     try:
-        zerodb = get_zerodb_service()
+        zerodb = get_zerodb_client()
 
         # Get current post
         try:

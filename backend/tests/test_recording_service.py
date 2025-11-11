@@ -31,7 +31,7 @@ class TestRecordingService:
         """Create RecordingService instance with mocked dependencies"""
         with patch('backend.services.recording_service.get_cloudflare_calls_service') as mock_calls, \
              patch('backend.services.recording_service.get_cloudflare_stream_service') as mock_stream, \
-             patch('backend.services.recording_service.get_zerodb_service') as mock_db:
+             patch('backend.services.recording_service.get_zerodb_client') as mock_db:
             
             service = RecordingService()
             service.calls_service = Mock()

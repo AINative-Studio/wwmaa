@@ -21,7 +21,7 @@ from backend.services.indexing_service import (
     ContentType,
     IndexingStatus
 )
-from backend.services.auth_service import get_current_user
+from backend.middleware.auth_middleware import get_current_user
 
 # Configure logging
 logger = logging.getLogger(__name__)

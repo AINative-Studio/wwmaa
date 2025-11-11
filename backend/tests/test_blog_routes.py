@@ -73,7 +73,7 @@ def sample_articles():
 class TestListBlogPosts:
     """Test GET /api/blog/posts endpoint"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_success(self, mock_zerodb, client, sample_articles):
         """Test successful post listing"""
         mock_service = Mock()
@@ -90,7 +90,7 @@ class TestListBlogPosts:
         assert len(data['data']) == 2
         assert data['pagination']['total'] == 2
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_pagination(self, mock_zerodb, client, sample_articles):
         """Test post listing with pagination"""
         mock_service = Mock()
@@ -107,7 +107,7 @@ class TestListBlogPosts:
         assert data['pagination']['total'] == 50
         assert data['pagination']['has_prev'] is True
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_filter_by_category(self, mock_zerodb, client, sample_articles):
         """Test filtering by category"""
         mock_service = Mock()
@@ -124,7 +124,7 @@ class TestListBlogPosts:
         call_args = mock_service.query_documents.call_args
         assert call_args[1]['filters']['category'] == 'Beginners'
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_filter_by_tag(self, mock_zerodb, client, sample_articles):
         """Test filtering by tag"""
         mock_service = Mock()
@@ -136,7 +136,7 @@ class TestListBlogPosts:
 
         assert response.status_code == 200
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_search(self, mock_zerodb, client, sample_articles):
         """Test search functionality"""
         mock_service = Mock()
@@ -153,7 +153,7 @@ class TestListBlogPosts:
         assert all('karate' in post['title'].lower() or 'karate' in post.get('excerpt', '').lower()
                    for post in data['data'])
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_posts_error_handling(self, mock_zerodb, client):
         """Test error handling"""
         mock_service = Mock()
@@ -172,7 +172,7 @@ class TestListBlogPosts:
 class TestGetBlogPostBySlug:
     """Test GET /api/blog/posts/{slug} endpoint"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_post_success(self, mock_zerodb, client, sample_articles):
         """Test successful post retrieval"""
         mock_service = Mock()
@@ -190,7 +190,7 @@ class TestGetBlogPostBySlug:
         # Verify view count was incremented
         mock_service.update_document.assert_called_once()
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_post_not_found(self, mock_zerodb, client):
         """Test post not found"""
         mock_service = Mock()
@@ -201,7 +201,7 @@ class TestGetBlogPostBySlug:
 
         assert response.status_code == 404
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_draft_post_as_public(self, mock_zerodb, client, sample_articles):
         """Test draft post not visible to public"""
         draft_post = sample_articles[0].copy()
@@ -224,7 +224,7 @@ class TestGetBlogPostBySlug:
 class TestListCategories:
     """Test GET /api/blog/categories endpoint"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_categories_success(self, mock_zerodb, client, sample_articles):
         """Test successful category listing"""
         mock_service = Mock()
@@ -239,7 +239,7 @@ class TestListCategories:
         assert 'total' in data
         assert len(data['data']) == 2  # Beginners and Advanced
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_categories_with_counts(self, mock_zerodb, client, sample_articles):
         """Test category counts"""
         mock_service = Mock()
@@ -265,7 +265,7 @@ class TestListCategories:
 class TestListTags:
     """Test GET /api/blog/tags endpoint"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_tags_success(self, mock_zerodb, client, sample_articles):
         """Test successful tag listing"""
         mock_service = Mock()
@@ -279,7 +279,7 @@ class TestListTags:
         assert 'data' in data
         assert len(data['data']) >= 2  # At least karate and beginners
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_list_tags_sorted_by_count(self, mock_zerodb, client, sample_articles):
         """Test tags sorted by count (descending)"""
         mock_service = Mock()
@@ -303,7 +303,7 @@ class TestListTags:
 class TestGetRelatedPosts:
     """Test GET /api/blog/posts/related/{post_id} endpoint"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_related_posts_success(self, mock_zerodb, client, sample_articles):
         """Test successful related posts retrieval"""
         post_id = sample_articles[0]['id']
@@ -320,7 +320,7 @@ class TestGetRelatedPosts:
         assert 'data' in data
         assert len(data['data']) >= 0
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_related_posts_not_found(self, mock_zerodb, client):
         """Test related posts for nonexistent post"""
         post_id = str(uuid4())
@@ -333,7 +333,7 @@ class TestGetRelatedPosts:
 
         assert response.status_code == 404
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_related_posts_limit(self, mock_zerodb, client, sample_articles):
         """Test related posts with limit"""
         post_id = sample_articles[0]['id']
@@ -357,7 +357,7 @@ class TestGetRelatedPosts:
 class TestCategoryTagFilters:
     """Test category and tag filter endpoints"""
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_posts_by_category(self, mock_zerodb, client, sample_articles):
         """Test GET /api/blog/posts/by-category/{category}"""
         mock_service = Mock()
@@ -371,7 +371,7 @@ class TestCategoryTagFilters:
         data = response.json()
         assert len(data['data']) >= 0
 
-    @patch('backend.routes.blog.get_zerodb_service')
+    @patch('backend.routes.blog.get_zerodb_client')
     def test_get_posts_by_tag(self, mock_zerodb, client, sample_articles):
         """Test GET /api/blog/posts/by-tag/{tag}"""
         mock_service = Mock()

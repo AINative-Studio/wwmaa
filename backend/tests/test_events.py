@@ -92,7 +92,7 @@ class TestEventRoutes:
     @pytest.mark.asyncio
     async def test_list_events_success(self, mock_event_data):
         """Test listing events successfully"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             # Setup mock
             db_instance = mock_db.return_value
             db_instance.query_collection = AsyncMock(return_value=[mock_event_data])
@@ -112,7 +112,7 @@ class TestEventRoutes:
     @pytest.mark.asyncio
     async def test_list_events_filters_by_type(self, mock_event_data):
         """Test filtering events by type"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.query_collection = AsyncMock(return_value=[mock_event_data])
             db_instance.close = AsyncMock()
@@ -132,7 +132,7 @@ class TestEventRoutes:
     @pytest.mark.asyncio
     async def test_list_events_public_only_for_public_users(self):
         """Test that public users only see public events"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.query_collection = AsyncMock(return_value=[])
             db_instance.close = AsyncMock()
@@ -152,7 +152,7 @@ class TestEventRoutes:
         """Test getting event detail successfully"""
         event_id = mock_event_data["id"]
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(
                 side_effect=lambda collection, id: {
@@ -180,7 +180,7 @@ class TestEventRoutes:
     @pytest.mark.asyncio
     async def test_get_event_detail_not_found(self):
         """Test 404 when event doesn't exist"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=None)
             db_instance.close = AsyncMock()
@@ -200,7 +200,7 @@ class TestEventRoutes:
         """Test 404 when event is canceled"""
         mock_event_data["is_canceled"] = True
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=mock_event_data)
             db_instance.close = AsyncMock()
@@ -220,7 +220,7 @@ class TestEventRoutes:
         """Test 403 when non-member tries to access members-only event"""
         mock_event_data["visibility"] = "members_only"
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=mock_event_data)
             db_instance.close = AsyncMock()
@@ -240,7 +240,7 @@ class TestEventRoutes:
         """Test member can access members-only event"""
         mock_event_data["visibility"] = "members_only"
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=mock_event_data)
             db_instance.query_collection = AsyncMock(return_value=[])
@@ -261,7 +261,7 @@ class TestEventRoutes:
         # Create 5 RSVPs
         rsvps = [{"id": str(uuid4()), "status": "confirmed"} for _ in range(5)]
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=mock_event_data)
             db_instance.query_collection = AsyncMock(return_value=rsvps)
@@ -284,7 +284,7 @@ class TestEventRoutes:
         related_event_1 = {**mock_event_data, "id": str(uuid4())}
         related_event_2 = {**mock_event_data, "id": str(uuid4())}
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.query_collection = AsyncMock(
                 return_value=[related_event_1, related_event_2]
@@ -300,7 +300,7 @@ class TestEventRoutes:
         """Test getting instructor information"""
         instructor_id = mock_instructor_data["id"]
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(
                 side_effect=lambda collection, id: {
@@ -356,7 +356,7 @@ class TestEventHelpers:
             "start_datetime": (datetime.utcnow() + timedelta(days=15)).isoformat(),
         }
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.query_collection = AsyncMock(
                 return_value=[event1, event2, event3]
@@ -380,7 +380,7 @@ class TestEventHelpers:
         """Test instructor info when profile doesn't exist"""
         instructor_id = mock_instructor_data["id"]
 
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(
                 side_effect=lambda collection, id: {
@@ -399,7 +399,7 @@ class TestEventHelpers:
     @pytest.mark.asyncio
     async def test_get_instructor_info_returns_none_for_invalid_id(self):
         """Test instructor info returns None for invalid ID"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
             db_instance.get_by_id = AsyncMock(return_value=None)
 
@@ -410,7 +410,7 @@ class TestEventHelpers:
     @pytest.mark.asyncio
     async def test_get_instructor_info_returns_none_for_empty_list(self):
         """Test instructor info returns None for empty list"""
-        with patch("backend.routes.events.ZeroDBService") as mock_db:
+        with patch("backend.routes.events.ZeroDBClient") as mock_db:
             db_instance = mock_db.return_value
 
             info = await get_instructor_info(db_instance, [])

@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 import redis.asyncio as redis
 
 from backend.config import get_settings
-from backend.services.zerodb_service import ZeroDBService
+from backend.services.zerodb_service import ZeroDBClient
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 settings = get_settings()
@@ -44,7 +44,7 @@ async def health_check() -> JSONResponse:
         content={
             "status": "healthy",
             "service": "wwmaa-backend",
-            "environment": settings.python_env,
+            "environment": settings.PYTHON_ENV,
             "timestamp": datetime.utcnow().isoformat(),
             "version": "1.0.0"
         }
@@ -85,7 +85,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     health_status = {
         "status": "healthy",
         "service": "wwmaa-backend",
-        "environment": settings.python_env,
+        "environment": settings.PYTHON_ENV,
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0",
         "checks": {}
@@ -116,7 +116,7 @@ async def detailed_health_check() -> Dict[str, Any]:
 
     # Check ZeroDB connection
     try:
-        zerodb = ZeroDBService()
+        zerodb = ZeroDBClient()
         # Simple connection test - try to list collections
         # This will fail gracefully if ZeroDB is not accessible
         health_status["checks"]["zerodb"] = {
@@ -244,7 +244,7 @@ async def system_status() -> Dict[str, Any]:
     return {
         "service": "wwmaa-backend",
         "status": "operational",
-        "environment": settings.python_env,
+        "environment": settings.PYTHON_ENV,
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "timestamp": datetime.utcnow().isoformat(),
         "configuration": {

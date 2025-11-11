@@ -18,7 +18,7 @@ Endpoints:
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -30,7 +30,7 @@ from backend.services.gdpr_service import (
     AccountAlreadyDeletedException,
     DeletionInProgressError
 )
-from backend.routes.auth import get_current_user
+from backend.middleware.auth_middleware import get_current_user
 from backend.models.schemas import User
 
 logger = logging.getLogger(__name__)
@@ -57,10 +57,10 @@ class ExportDataResponse(BaseModel):
     export_id: str = Field(..., description="Unique export identifier")
     status: str = Field(..., description="Export status (processing, completed)")
     message: str = Field(..., description="Status message")
-    download_url: str | None = Field(None, description="Download URL when ready")
-    expiry_date: str | None = Field(None, description="When download link expires")
-    file_size_bytes: int | None = Field(None, description="Export file size")
-    record_counts: Dict[str, int] | None = Field(
+    download_url: Optional[str] = Field(None, description="Download URL when ready")
+    expiry_date: Optional[str] = Field(None, description="When download link expires")
+    file_size_bytes: Optional[int] = Field(None, description="Export file size")
+    record_counts: Optional[Dict[str, int]] = Field(
         None,
         description="Number of records per collection"
     )
@@ -93,9 +93,9 @@ class ExportStatusResponse(BaseModel):
     """Response model for export status"""
     export_id: str = Field(..., description="Unique export identifier")
     status: str = Field(..., description="Export status")
-    created_at: str | None = Field(None, description="When export was created")
-    expiry_date: str | None = Field(None, description="When export expires")
-    file_size_bytes: int | None = Field(None, description="File size in bytes")
+    created_at: Optional[str] = Field(None, description="When export was created")
+    expiry_date: Optional[str] = Field(None, description="When export expires")
+    file_size_bytes: Optional[int] = Field(None, description="File size in bytes")
 
 
 class DeleteExportResponse(BaseModel):
@@ -107,7 +107,7 @@ class DeleteExportResponse(BaseModel):
 class DeleteAccountRequest(BaseModel):
     """Request model for account deletion"""
     password: str = Field(..., description="User password for confirmation", min_length=8)
-    reason: str | None = Field(None, description="Optional reason for deletion", max_length=500)
+    reason: Optional[str] = Field(None, description="Optional reason for deletion", max_length=500)
     confirmation: str = Field(
         ...,
         description="Must be exactly 'DELETE' to confirm",

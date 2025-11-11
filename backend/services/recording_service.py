@@ -21,7 +21,7 @@ from backend.services.cloudflare_stream_service import (
     get_cloudflare_stream_service,
     StreamAPIError
 )
-from backend.services.zerodb_service import get_zerodb_service
+from backend.services.zerodb_service import get_zerodb_client
 from backend.models.schemas import RecordingStatus
 
 # Configure logging
@@ -59,7 +59,7 @@ class RecordingService:
         """Initialize Recording Service"""
         self.calls_service = get_cloudflare_calls_service()
         self.stream_service = get_cloudflare_stream_service()
-        self.db_service = get_zerodb_service()
+        self.db_service = get_zerodb_client()
 
         self.max_retries = 3
         self.retry_delay_seconds = 5

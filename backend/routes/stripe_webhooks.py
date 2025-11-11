@@ -201,7 +201,7 @@ async def cloudflare_recording_webhook(request: Request):
     """
     from backend.services.recording_service import get_recording_service
     from backend.services.email_service import get_email_service
-    from backend.services.zerodb_service import get_zerodb_service
+    from backend.services.zerodb_service import get_zerodb_client
 
     # Get raw request body
     try:
@@ -224,7 +224,7 @@ async def cloudflare_recording_webhook(request: Request):
     try:
         recording_service = get_recording_service()
         email_service = get_email_service()
-        db_service = get_zerodb_service()
+        db_service = get_zerodb_client()
 
         if event_type == "recording.complete":
             # Recording has been uploaded to Stream and is ready

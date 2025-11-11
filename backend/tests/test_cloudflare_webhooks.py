@@ -99,7 +99,7 @@ def generate_signature(payload: dict, secret: str, timestamp: int = None) -> tup
 @pytest.fixture
 def mock_zerodb():
     """Mock ZeroDB service"""
-    with patch('backend.routes.webhooks.cloudflare.get_zerodb_service') as mock:
+    with patch('backend.routes.webhooks.cloudflare.get_zerodb_client') as mock:
         zerodb = Mock()
         zerodb.query_collection = Mock(return_value=[])
         zerodb.update_document = Mock()

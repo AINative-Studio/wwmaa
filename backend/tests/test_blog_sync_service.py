@@ -46,7 +46,7 @@ from backend.models.schemas import (
 @pytest.fixture
 def blog_sync_service():
     """Create BlogSyncService instance with mocked dependencies"""
-    with patch('backend.services.blog_sync_service.get_zerodb_service'):
+    with patch('backend.services.blog_sync_service.get_zerodb_client'):
         service = BlogSyncService()
         service.beehiiv_api_key = 'test_api_key'
         service.beehiiv_publication_id = 'test_pub_id'
@@ -707,7 +707,7 @@ def test_get_blog_sync_service_singleton():
     """Test service singleton pattern"""
     from backend.services.blog_sync_service import get_blog_sync_service
 
-    with patch('backend.services.blog_sync_service.get_zerodb_service'):
+    with patch('backend.services.blog_sync_service.get_zerodb_client'):
         service1 = get_blog_sync_service()
         service2 = get_blog_sync_service()
 

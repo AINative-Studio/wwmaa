@@ -20,7 +20,7 @@ from backend.routes import application_submission
 from backend.routes import payments
 from backend.routes import checkout
 from backend.routes import billing
-from backend.routes import webhooks
+from backend.routes import stripe_webhooks
 from backend.routes import event_attendees
 from backend.routes import event_rsvps
 from backend.routes import search
@@ -231,7 +231,7 @@ app.include_router(application_submission.router)
 app.include_router(payments.router)
 app.include_router(checkout.router)
 app.include_router(billing.router)
-app.include_router(webhooks.router)
+app.include_router(stripe_webhooks.router)
 app.include_router(event_attendees.router)
 app.include_router(event_rsvps.router)
 app.include_router(search.router)

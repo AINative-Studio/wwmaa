@@ -82,4 +82,5 @@ sentry-sdk[fastapi]==1.40.0
 bleach==6.1.0  # HTML sanitization (XSS prevention)
 python-magic==0.4.27  # File type detection (magic bytes verification)
 dnspython==2.4.2  # DNS checks for email validation
+email-validator==2.1.0  # Email validation for Pydantic EmailStr
 pip-audit==2.6.1  # Security vulnerability scanning

@@ -518,7 +518,7 @@ class WebhookService:
             "user_id": user_id
         }
 
-    def _handle_invoice_payment_failed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_invoice_payment_failed(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle invoice.payment_failed event with comprehensive dunning support
 

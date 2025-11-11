@@ -10,7 +10,7 @@ Provides Stripe integration for payment processing including:
 
 import logging
 import stripe
-from stripe import StripeError
+from stripe.error import StripeError
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from backend.config import settings

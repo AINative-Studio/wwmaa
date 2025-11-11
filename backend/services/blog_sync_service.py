@@ -28,7 +28,7 @@ from io import BytesIO
 from PIL import Image
 
 from backend.config import settings
-from backend.services.zerodb_service import get_zerodb_service
+from backend.services.zerodb_service import get_zerodb_client
 from backend.models.schemas import (
     Article,
     ArticleAuthor,
@@ -68,7 +68,7 @@ class BlogSyncService:
     """
 
     def __init__(self):
-        self.zerodb = get_zerodb_service()
+        self.zerodb = get_zerodb_client()
         self.beehiiv_api_key = settings.BEEHIIV_API_KEY
         self.beehiiv_publication_id = settings.BEEHIIV_PUBLICATION_ID
         self.beehiiv_webhook_secret = settings.BEEHIIV_WEBHOOK_SECRET

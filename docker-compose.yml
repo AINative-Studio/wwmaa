@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Backend API (Python FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wwmaa-backend
+    ports:
+      - "9001:8000"  # High port 9001 externally, 8000 internally
+    environment:
+      - PYTHON_ENV=development
+      - PORT=8000
+      - REDIS_URL=redis://redis:6379
+      # Load from .env file
+      - DATABASE_URL=${DATABASE_URL}
+      - ZERODB_API_KEY=${ZERODB_API_KEY}
+      - ZERODB_API_BASE_URL=${ZERODB_API_BASE_URL}
+      - ZERODB_EMAIL=${ZERODB_EMAIL}
+      - ZERODB_PASSWORD=${ZERODB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - BEEHIIV_API_KEY=${BEEHIIV_API_KEY}
+      - BEEHIIV_PUBLICATION_ID=${BEEHIIV_PUBLICATION_ID}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - CF_STREAM_ACCOUNT_ID=${CF_STREAM_ACCOUNT_ID}
+      - CF_STREAM_API_TOKEN=${CF_STREAM_API_TOKEN}
+      - POSTMARK_API_KEY=${POSTMARK_API_KEY}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@wwmaa.com}
+      - AINATIVE_API_KEY=${AINATIVE_API_KEY}
+      - AI_REGISTRY_API_KEY=${AI_REGISTRY_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./backend:/app/backend  # Mount for hot reload in dev
+      - ./logs:/var/log/wwmaa
+    depends_on:
+      - redis
+    networks:
+      - wwmaa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: wwmaa-redis
+    ports:
+      - "6380:6379"  # High port 6380 externally
+    volumes:
+      - redis-data:/data
+    networks:
+      - wwmaa-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Frontend (Next.js) - Optional, can run separately with npm
+  # Uncomment if you want to run frontend in Docker too
+  # frontend:
+  #   image: node:20-alpine
+  #   container_name: wwmaa-frontend
+  #   working_dir: /app
+  #   ports:
+  #     - "3001:3000"  # High port 3001 externally
+  #   environment:
+  #     - NODE_ENV=development
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8080
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   command: sh -c "npm install && npm run dev"
+  #   networks:
+  #     - wwmaa-network
+  #   depends_on:
+  #     - backend
+
+networks:
+  wwmaa-network:
+    driver: bridge
+
+volumes:
+  redis-data:

@@ -16,8 +16,8 @@ from unittest.mock import Mock, AsyncMock, patch
 from typing import Dict, Any, List, Optional
 
 
-# Mock ZeroDBService class - Will be replaced with actual implementation
-class ZeroDBService:
+# Mock ZeroDBClient class - Will be replaced with actual implementation
+class ZeroDBClient:
     """Service for interacting with ZeroDB API"""
 
     def __init__(self, api_key: str, base_url: str):
@@ -102,13 +102,13 @@ class ZeroDBService:
 
 @pytest.mark.unit
 @pytest.mark.database
-class TestZeroDBService:
+class TestZeroDBClient:
     """Test suite for ZeroDB service operations"""
 
     @pytest.fixture
-    def service(self) -> ZeroDBService:
-        """Provide a ZeroDBService instance"""
-        return ZeroDBService(
+    def service(self) -> ZeroDBClient:
+        """Provide a ZeroDBClient instance"""
+        return ZeroDBClient(
             api_key="test_api_key",
             base_url="https://test.api.ainative.studio"
         )
@@ -241,7 +241,7 @@ class TestZeroDBService:
 
 @pytest.mark.unit
 @pytest.mark.mock
-class TestZeroDBServiceWithMocks:
+class TestZeroDBClientWithMocks:
     """Test suite using advanced mocking techniques"""
 
     @pytest.mark.asyncio
@@ -309,7 +309,7 @@ class TestZeroDBServiceWithMocks:
 
 @pytest.mark.unit
 @pytest.mark.mock
-class TestZeroDBServiceErrorHandling:
+class TestZeroDBClientErrorHandling:
     """Test suite for error handling in ZeroDB service"""
 
     @pytest.mark.asyncio

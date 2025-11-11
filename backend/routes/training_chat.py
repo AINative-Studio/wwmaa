@@ -19,7 +19,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from pydantic import BaseModel, Field
 
-from backend.services.auth_service import get_current_user
+from backend.middleware.auth_middleware import get_current_user
 from backend.services.session_chat_service import (
     SessionChatService,
     SessionChatError,
