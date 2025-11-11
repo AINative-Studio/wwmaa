@@ -21,8 +21,11 @@ from backend.routes import webhooks
 from backend.routes import event_attendees
 from backend.routes import event_rsvps
 from backend.routes import search
+from backend.routes import newsletter
+from backend.routes import blog
 from backend.routes.admin import search_analytics
 from backend.routes.admin import indexing
+from backend.routes.webhooks import beehiiv
 import logging
 
 # Initialize settings
@@ -65,6 +68,9 @@ app.include_router(webhooks.router)
 app.include_router(event_attendees.router)
 app.include_router(event_rsvps.router)
 app.include_router(search.router)
+app.include_router(newsletter.router)
+app.include_router(blog.router)
+app.include_router(beehiiv.router)
 app.include_router(search_analytics.router)
 app.include_router(indexing.router)
 

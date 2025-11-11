@@ -115,6 +115,24 @@ class Settings(BaseSettings):
     )
 
     # ==========================================
+    # BeeHiiv Blog Integration Configuration
+    # ==========================================
+    BEEHIIV_API_KEY: str = Field(
+        default="",
+        description="BeeHiiv API key for blog post synchronization"
+    )
+
+    BEEHIIV_PUBLICATION_ID: str = Field(
+        default="",
+        description="BeeHiiv publication ID"
+    )
+
+    BEEHIIV_WEBHOOK_SECRET: str = Field(
+        default="",
+        description="BeeHiiv webhook secret for signature verification"
+    )
+
+    # ==========================================
     # Email Configuration (REQUIRED)
     # ==========================================
     POSTMARK_API_KEY: str = Field(
@@ -160,6 +178,16 @@ class Settings(BaseSettings):
     CLOUDFLARE_CALLS_APP_ID: str = Field(
         default="",
         description="Cloudflare Calls application ID (optional)"
+    )
+
+    CLOUDFLARE_WEBHOOK_SECRET: str = Field(
+        default="",
+        description="Cloudflare webhook secret for signature verification (optional)"
+    )
+
+    CLOUDFLARE_CALLS_API_TOKEN: str = Field(
+        default="",
+        description="Cloudflare Calls API token (uses CLOUDFLARE_API_TOKEN if not set)"
     )
 
     # ==========================================
@@ -417,6 +445,23 @@ class Settings(BaseSettings):
             "max_tokens": self.AI_REGISTRY_MAX_TOKENS,
             "temperature": self.AI_REGISTRY_TEMPERATURE,
             "timeout": self.AI_REGISTRY_TIMEOUT
+        }
+
+    def get_cloudflare_calls_config(self) -> dict:
+        """
+        Get Cloudflare Calls configuration as a dictionary.
+
+        Returns:
+            Dictionary with Cloudflare Calls configuration
+        """
+        # Use CLOUDFLARE_CALLS_API_TOKEN if set, otherwise fall back to CLOUDFLARE_API_TOKEN
+        api_token = self.CLOUDFLARE_CALLS_API_TOKEN or self.CLOUDFLARE_API_TOKEN
+
+        return {
+            "account_id": self.CLOUDFLARE_ACCOUNT_ID,
+            "api_token": api_token,
+            "app_id": self.CLOUDFLARE_CALLS_APP_ID,
+            "webhook_secret": self.CLOUDFLARE_WEBHOOK_SECRET
         }
 
 

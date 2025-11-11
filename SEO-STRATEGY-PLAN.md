@@ -1,3 +1,6 @@
+
+
+
 # WWMAA SEO Strategy & Implementation Plan
 ## World Wide Martial Arts Association
 

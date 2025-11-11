@@ -34,6 +34,7 @@ from fastapi import (
 from pydantic import BaseModel, Field, field_validator, HttpUrl
 
 from backend.services.event_service import get_event_service, EventService
+from backend.services.training_session_service import get_training_session_service, TrainingSessionService
 from backend.services.zerodb_service import (
     ZeroDBError,
     ZeroDBNotFoundError,
@@ -388,12 +389,14 @@ async def create_event(
 @router.get("/public/{event_id}")
 async def get_public_event(
     event_id: str,
-    event_service: EventService = Depends(get_event_service)
+    event_service: EventService = Depends(get_event_service),
+    session_service: TrainingSessionService = Depends(get_training_session_service)
 ):
     """
     Get a single public event by ID (No auth required)
 
     Returns event details for published, public events only.
+    Includes associated training sessions if any.
     """
     try:
         event = event_service.get_event(event_id)
@@ -404,6 +407,17 @@ async def get_public_event(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Event not found"
             )
+
+        # Include training sessions for this event
+        try:
+            sessions_result = session_service.list_sessions(
+                filters={"event_id": event_id},
+                limit=100
+            )
+            event["training_sessions"] = sessions_result.get("documents", [])
+        except Exception as e:
+            logger.warning(f"Failed to fetch training sessions for event {event_id}: {e}")
+            event["training_sessions"] = []
 
         return event
 
@@ -426,15 +440,29 @@ async def get_public_event(
 async def get_event(
     event_id: str,
     current_user: User = Depends(require_admin),
-    event_service: EventService = Depends(get_event_service)
+    event_service: EventService = Depends(get_event_service),
+    session_service: TrainingSessionService = Depends(get_training_session_service)
 ):
     """
     Get a single event by ID (Admin only)
 
     Returns full event details including all fields.
+    Includes associated training sessions if any.
     """
     try:
         event = event_service.get_event(event_id)
+
+        # Include training sessions for this event
+        try:
+            sessions_result = session_service.list_sessions(
+                filters={"event_id": event_id},
+                limit=100
+            )
+            event["training_sessions"] = sessions_result.get("documents", [])
+        except Exception as e:
+            logger.warning(f"Failed to fetch training sessions for event {event_id}: {e}")
+            event["training_sessions"] = []
+
         return event
 
     except ZeroDBNotFoundError as e:

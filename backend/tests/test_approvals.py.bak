@@ -1,0 +1,807 @@
+"""
+Comprehensive Tests for Application Approval Queue (US-016)
+
+This test suite validates the board member approval queue functionality including:
+- Pending application retrieval
+- Approval workflow with 2-board-member requirement
+- Rejection workflow
+- Information request workflow
+- Self-approval prevention
+- Duplicate approval prevention
+- Email notifications
+
+Test Coverage Target: 80%+
+"""
+
+import pytest
+from datetime import datetime
+from uuid import UUID, uuid4
+from unittest.mock import Mock, patch, MagicMock
+from fastapi import HTTPException
+
+from backend.models.schemas import (
+    Application,
+    ApplicationStatus,
+    Approval,
+    ApprovalStatus,
+    UserRole
+)
+
+
+# ============================================================================
+# TEST DATA FIXTURES
+# ============================================================================
+
+@pytest.fixture
+def board_member_user():
+    """Sample board member user"""
+    return {
+        "id": uuid4(),
+        "email": "board@wwmaa.org",
+        "role": "board_member",
+        "token_issued_at": datetime.utcnow().timestamp(),
+        "token_expires_at": (datetime.utcnow().timestamp() + 3600)
+    }
+
+
+@pytest.fixture
+def admin_user():
+    """Sample admin user"""
+    return {
+        "id": uuid4(),
+        "email": "admin@wwmaa.org",
+        "role": "admin",
+        "token_issued_at": datetime.utcnow().timestamp(),
+        "token_expires_at": (datetime.utcnow().timestamp() + 3600)
+    }
+
+
+@pytest.fixture
+def regular_user():
+    """Sample regular user (applicant)"""
+    return {
+        "id": uuid4(),
+        "email": "applicant@example.com",
+        "role": "public",
+        "token_issued_at": datetime.utcnow().timestamp(),
+        "token_expires_at": (datetime.utcnow().timestamp() + 3600)
+    }
+
+
+@pytest.fixture
+def sample_application(regular_user):
+    """Sample submitted application"""
+    app_id = uuid4()
+    return Application(
+        id=app_id,
+        user_id=regular_user["id"],
+        status=ApplicationStatus.SUBMITTED,
+        first_name="Jane",
+        last_name="Doe",
+        email="jane.doe@example.com",
+        phone="555-0123",
+        disciplines=["Karate", "Judo"],
+        experience_years=5,
+        current_rank="2nd Dan Black Belt",
+        school_affiliation="Test Dojo",
+        motivation="Want to join WWMAA community",
+        submitted_at=datetime.utcnow(),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+
+@pytest.fixture
+def under_review_application(regular_user):
+    """Sample application under review (has 1 approval)"""
+    app_id = uuid4()
+    return Application(
+        id=app_id,
+        user_id=regular_user["id"],
+        status=ApplicationStatus.UNDER_REVIEW,
+        first_name="John",
+        last_name="Smith",
+        email="john.smith@example.com",
+        phone="555-0124",
+        disciplines=["Taekwondo"],
+        experience_years=3,
+        current_rank="1st Dan Black Belt",
+        school_affiliation="Test Academy",
+        motivation="Career growth",
+        submitted_at=datetime.utcnow(),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+
+@pytest.fixture
+def sample_approval(sample_application, board_member_user):
+    """Sample approval record"""
+    return Approval(
+        id=uuid4(),
+        application_id=sample_application.id,
+        approver_id=board_member_user["id"],
+        status=ApprovalStatus.APPROVED,
+        notes="Application looks good",
+        approved_at=datetime.utcnow(),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+
+# ============================================================================
+# HELPER FUNCTION TESTS
+# ============================================================================
+
+class TestHelperFunctions:
+    """Test helper functions from applications.py"""
+
+    @pytest.mark.asyncio
+    async def test_get_application_by_id_success(self, sample_application):
+        """Test successful application retrieval"""
+        from backend.routes.applications import get_application_by_id
+
+        with patch('backend.routes.applications.zerodb_client') as mock_zerodb:
+            mock_zerodb.query_documents.return_value = [sample_application.model_dump(mode="json")]
+
+            result = await get_application_by_id(sample_application.id)
+
+            assert result.id == sample_application.id
+            assert result.first_name == sample_application.first_name
+            mock_zerodb.query_documents.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_application_by_id_not_found(self):
+        """Test application not found raises 404"""
+        from backend.routes.applications import get_application_by_id
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            mock_zerodb.query_documents.return_value = []
+
+            with pytest.raises(HTTPException) as exc_info:
+                await get_application_by_id(uuid4())
+
+            assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_check_self_approval(self, sample_application, board_member_user):
+        """Test self-approval detection"""
+        from backend.routes.applications import check_self_approval
+
+        # Different users - should not be self-approval
+        result = await check_self_approval(sample_application, board_member_user["id"])
+        assert result is False
+
+        # Same user - should be self-approval
+        sample_application.user_id = board_member_user["id"]
+        result = await check_self_approval(sample_application, board_member_user["id"])
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_duplicate_approval_exists(self, sample_application, board_member_user, sample_approval):
+        """Test duplicate approval detection when approval exists"""
+        from backend.routes.applications import check_duplicate_approval
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            mock_zerodb.query_documents.return_value = [sample_approval.model_dump(mode="json")]
+
+            result = await check_duplicate_approval(sample_application.id, board_member_user["id"])
+
+            assert result is True
+            mock_zerodb.query_documents.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_check_duplicate_approval_not_exists(self, sample_application, board_member_user):
+        """Test duplicate approval detection when no approval exists"""
+        from backend.routes.applications import check_duplicate_approval
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            mock_zerodb.query_documents.return_value = []
+
+            result = await check_duplicate_approval(sample_application.id, board_member_user["id"])
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_count_approvals(self, sample_application):
+        """Test approval counting"""
+        from backend.routes.applications import count_approvals
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            # Mock 2 approvals
+            mock_zerodb.query_documents.return_value = [
+                {"id": str(uuid4()), "status": "approved"},
+                {"id": str(uuid4()), "status": "approved"}
+            ]
+
+            count = await count_approvals(sample_application.id)
+
+            assert count == 2
+            mock_zerodb.query_documents.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_approve_application_success(self, sample_application):
+        """Test auto-approval when 2 approvals reached"""
+        from backend.routes.applications import auto_approve_application
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            mock_zerodb.update_document.return_value = True
+
+            result = await auto_approve_application(sample_application.id, 2)
+
+            assert result is True
+            mock_zerodb.update_document.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_approve_application_insufficient_approvals(self, sample_application):
+        """Test no auto-approval when less than 2 approvals"""
+        from backend.routes.applications import auto_approve_application
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb:
+            result = await auto_approve_application(sample_application.id, 1)
+
+            assert result is False
+            mock_zerodb.update_document.assert_not_called()
+
+
+# ============================================================================
+# ENDPOINT TESTS - LIST PENDING APPLICATIONS
+# ============================================================================
+
+class TestListPendingApplications:
+    """Test GET /api/applications/pending endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_list_pending_applications_success(self, board_member_user, sample_application):
+        """Test successful retrieval of pending applications"""
+        from backend.routes.applications import list_pending_applications
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count:
+
+            mock_zerodb.query_documents.return_value = [sample_application.model_dump(mode="json")]
+            mock_count.return_value = 0
+
+            result = await list_pending_applications(
+                current_user=board_member_user,
+                status_filter=None,
+                limit=50,
+                offset=0
+            )
+
+            assert len(result) == 1
+            assert result[0].first_name == "Jane"
+            assert result[0].approvals_count == 0
+            assert result[0].approvals_needed == 2
+
+    @pytest.mark.asyncio
+    async def test_list_pending_applications_with_status_filter(self, board_member_user, sample_application):
+        """Test pending applications with status filter"""
+        from backend.routes.applications import list_pending_applications
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count:
+
+            mock_zerodb.query_documents.return_value = [sample_application.model_dump(mode="json")]
+            mock_count.return_value = 1
+
+            result = await list_pending_applications(
+                current_user=board_member_user,
+                status_filter="submitted",
+                limit=50,
+                offset=0
+            )
+
+            assert len(result) == 1
+            # Verify query filter was used
+            call_args = mock_zerodb.query_documents.call_args
+            assert "filter" in call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_list_pending_applications_pagination(self, board_member_user):
+        """Test pagination of pending applications"""
+        from backend.routes.applications import list_pending_applications
+
+        # Create 5 sample applications
+        applications = []
+        for i in range(5):
+            app = Application(
+                id=uuid4(),
+                user_id=uuid4(),
+                status=ApplicationStatus.SUBMITTED,
+                first_name=f"User{i}",
+                last_name="Test",
+                email=f"user{i}@example.com",
+                disciplines=["Karate"],
+                submitted_at=datetime.utcnow(),
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            applications.append(app.model_dump(mode="json"))
+
+        with patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count:
+
+            mock_zerodb.query_documents.return_value = applications
+            mock_count.return_value = 0
+
+            # Test first page
+            result = await list_pending_applications(
+                current_user=board_member_user,
+                status_filter=None,
+                limit=2,
+                offset=0
+            )
+
+            assert len(result) == 2
+
+            # Test second page
+            result = await list_pending_applications(
+                current_user=board_member_user,
+                status_filter=None,
+                limit=2,
+                offset=2
+            )
+
+            assert len(result) == 2
+
+
+# ============================================================================
+# ENDPOINT TESTS - GET APPLICATION
+# ============================================================================
+
+class TestGetApplication:
+    """Test GET /api/applications/:id endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_get_application_as_board_member(self, board_member_user, sample_application):
+        """Test board member can view application"""
+        from backend.routes.applications import get_application
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.return_value = sample_application
+
+            result = await get_application(sample_application.id, board_member_user)
+
+            assert result.id == sample_application.id
+            mock_get_app.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_application_as_owner(self, regular_user, sample_application):
+        """Test applicant can view their own application"""
+        from backend.routes.applications import get_application
+
+        # Make sure the user owns the application
+        sample_application.user_id = regular_user["id"]
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.return_value = sample_application
+
+            result = await get_application(sample_application.id, regular_user)
+
+            assert result.id == sample_application.id
+
+    @pytest.mark.asyncio
+    async def test_get_application_forbidden(self, sample_application):
+        """Test non-owner, non-board user cannot view application"""
+        from backend.routes.applications import get_application
+
+        other_user = {
+            "id": uuid4(),
+            "email": "other@example.com",
+            "role": "public"
+        }
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.return_value = sample_application
+
+            with pytest.raises(HTTPException) as exc_info:
+                await get_application(sample_application.id, other_user)
+
+            assert exc_info.value.status_code == 403
+
+
+# ============================================================================
+# ENDPOINT TESTS - APPROVE APPLICATION
+# ============================================================================
+
+class TestApproveApplication:
+    """Test POST /api/applications/:id/approve endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_approve_application_first_approval(self, board_member_user, sample_application):
+        """Test first approval of an application"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Looks good to me")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self, \
+             patch('backend.routes.applications.check_duplicate_approval') as mock_dup, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count, \
+             patch('backend.routes.applications.auto_approve_application') as mock_auto, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = False
+            mock_dup.return_value = False
+            mock_count.return_value = 1
+            mock_auto.return_value = False
+
+            result = await approve_application(
+                sample_application.id,
+                request,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert result.approvals_count == 1
+            assert result.status == ApplicationStatus.UNDER_REVIEW
+            mock_zerodb.insert_document.assert_called_once()
+            mock_email.send_application_first_approval_email.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_application_second_approval_auto_approve(self, board_member_user, sample_application):
+        """Test second approval triggers auto-approval"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Second approval")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self, \
+             patch('backend.routes.applications.check_duplicate_approval') as mock_dup, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count, \
+             patch('backend.routes.applications.auto_approve_application') as mock_auto, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = False
+            mock_dup.return_value = False
+            mock_count.return_value = 2
+            mock_auto.return_value = True
+
+            result = await approve_application(
+                sample_application.id,
+                request,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert result.approvals_count == 2
+            assert result.status == ApplicationStatus.APPROVED
+            mock_email.send_application_fully_approved_email.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_application_self_approval_prevented(self, board_member_user, sample_application):
+        """Test board member cannot approve their own application"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Self approval attempt")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = True
+
+            with pytest.raises(HTTPException) as exc_info:
+                await approve_application(
+                    sample_application.id,
+                    request,
+                    board_member_user
+                )
+
+            assert exc_info.value.status_code == 403
+            assert "cannot approve their own" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_approve_application_duplicate_prevented(self, board_member_user, sample_application):
+        """Test duplicate approval prevention"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Duplicate approval attempt")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self, \
+             patch('backend.routes.applications.check_duplicate_approval') as mock_dup:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = False
+            mock_dup.return_value = True
+
+            with pytest.raises(HTTPException) as exc_info:
+                await approve_application(
+                    sample_application.id,
+                    request,
+                    board_member_user
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "already approved" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_approve_application_wrong_status(self, board_member_user, sample_application):
+        """Test cannot approve application in wrong status"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Wrong status")
+
+        # Set application to approved status
+        sample_application.status = ApplicationStatus.APPROVED
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.return_value = sample_application
+
+            with pytest.raises(HTTPException) as exc_info:
+                await approve_application(
+                    sample_application.id,
+                    request,
+                    board_member_user
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "cannot approve" in exc_info.value.detail.lower()
+
+
+# ============================================================================
+# ENDPOINT TESTS - REJECT APPLICATION
+# ============================================================================
+
+class TestRejectApplication:
+    """Test POST /api/applications/:id/reject endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_reject_application_success(self, board_member_user, sample_application):
+        """Test successful application rejection"""
+        from backend.routes.applications import reject_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Insufficient experience")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+
+            result = await reject_application(
+                sample_application.id,
+                request,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert result.status == ApplicationStatus.REJECTED
+            mock_zerodb.insert_document.assert_called_once()
+            mock_zerodb.update_document.assert_called_once()
+            mock_email.send_application_rejected_email.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reject_application_requires_reason(self, board_member_user, sample_application):
+        """Test rejection requires a reason"""
+        from backend.routes.applications import reject_application, ApprovalRequest
+
+        request = ApprovalRequest(notes=None)
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.return_value = sample_application
+
+            with pytest.raises(HTTPException) as exc_info:
+                await reject_application(
+                    sample_application.id,
+                    request,
+                    board_member_user
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "reason is required" in exc_info.value.detail.lower()
+
+
+# ============================================================================
+# ENDPOINT TESTS - REQUEST ADDITIONAL INFO
+# ============================================================================
+
+class TestRequestAdditionalInfo:
+    """Test POST /api/applications/:id/request-info endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_request_info_success(self, board_member_user, sample_application):
+        """Test successful information request"""
+        from backend.routes.applications import request_additional_info, RequestInfoRequest
+
+        request = RequestInfoRequest(message="Please provide more details about your training background")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+            mock_count.return_value = 0
+
+            result = await request_additional_info(
+                sample_application.id,
+                request,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert "information request" in result.message.lower()
+            mock_zerodb.insert_document.assert_called_once()
+            mock_email.send_application_info_request_email.assert_called_once()
+
+
+# ============================================================================
+# ENDPOINT TESTS - GET APPROVAL HISTORY
+# ============================================================================
+
+class TestGetApprovalHistory:
+    """Test GET /api/applications/:id/approvals endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_get_approval_history_success(self, board_member_user, sample_application, sample_approval):
+        """Test successful retrieval of approval history"""
+        from backend.routes.applications import get_approval_history
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.get_approvals_for_application') as mock_get_approvals, \
+             patch('backend.routes.applications.get_user_info') as mock_get_user:
+
+            mock_get_app.return_value = sample_application
+            mock_get_approvals.return_value = [sample_approval]
+            mock_get_user.return_value = {
+                "email": board_member_user["email"],
+                "first_name": "Board",
+                "last_name": "Member"
+            }
+
+            result = await get_approval_history(
+                sample_application.id,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert len(result.approvals) == 1
+            assert result.total_approvals == 1
+
+    @pytest.mark.asyncio
+    async def test_get_approval_history_empty(self, board_member_user, sample_application):
+        """Test approval history with no approvals"""
+        from backend.routes.applications import get_approval_history
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.get_approvals_for_application') as mock_get_approvals:
+
+            mock_get_app.return_value = sample_application
+            mock_get_approvals.return_value = []
+
+            result = await get_approval_history(
+                sample_application.id,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert len(result.approvals) == 0
+            assert result.total_approvals == 0
+
+
+# ============================================================================
+# INTEGRATION TESTS
+# ============================================================================
+
+@pytest.mark.integration
+class TestApprovalWorkflowIntegration:
+    """Integration tests for complete approval workflow"""
+
+    @pytest.mark.asyncio
+    async def test_full_approval_workflow(self, sample_application):
+        """Test complete workflow from submission to approval"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        board_member_1 = {
+            "id": uuid4(),
+            "email": "board1@wwmaa.org",
+            "role": "board_member"
+        }
+
+        board_member_2 = {
+            "id": uuid4(),
+            "email": "board2@wwmaa.org",
+            "role": "board_member"
+        }
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self, \
+             patch('backend.routes.applications.check_duplicate_approval') as mock_dup, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count, \
+             patch('backend.routes.applications.auto_approve_application') as mock_auto, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = False
+            mock_dup.return_value = False
+
+            # First approval
+            mock_count.return_value = 1
+            mock_auto.return_value = False
+
+            result1 = await approve_application(
+                sample_application.id,
+                ApprovalRequest(notes="First approval"),
+                board_member_1
+            )
+
+            assert result1.approvals_count == 1
+            assert result1.status == ApplicationStatus.UNDER_REVIEW
+
+            # Second approval
+            mock_count.return_value = 2
+            mock_auto.return_value = True
+
+            result2 = await approve_application(
+                sample_application.id,
+                ApprovalRequest(notes="Second approval"),
+                board_member_2
+            )
+
+            assert result2.approvals_count == 2
+            assert result2.status == ApplicationStatus.APPROVED
+
+
+# ============================================================================
+# ERROR HANDLING TESTS
+# ============================================================================
+
+class TestErrorHandling:
+    """Test error handling in approval endpoints"""
+
+    @pytest.mark.asyncio
+    async def test_handle_zerodb_error(self, board_member_user, sample_application):
+        """Test handling of ZeroDB errors"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Test")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app:
+            mock_get_app.side_effect = Exception("ZeroDB connection error")
+
+            with pytest.raises(Exception):
+                await approve_application(
+                    sample_application.id,
+                    request,
+                    board_member_user
+                )
+
+    @pytest.mark.asyncio
+    async def test_handle_email_service_error(self, board_member_user, sample_application):
+        """Test that email errors don't fail the approval"""
+        from backend.routes.applications import approve_application, ApprovalRequest
+
+        request = ApprovalRequest(notes="Test approval")
+
+        with patch('backend.routes.applications.get_application_by_id') as mock_get_app, \
+             patch('backend.routes.applications.check_self_approval') as mock_self, \
+             patch('backend.routes.applications.check_duplicate_approval') as mock_dup, \
+             patch('backend.routes.applications.zerodb') as mock_zerodb, \
+             patch('backend.routes.applications.count_approvals') as mock_count, \
+             patch('backend.routes.applications.auto_approve_application') as mock_auto, \
+             patch('backend.routes.applications.email_service') as mock_email:
+
+            mock_get_app.return_value = sample_application
+            mock_self.return_value = False
+            mock_dup.return_value = False
+            mock_count.return_value = 1
+            mock_auto.return_value = False
+            mock_email.send_application_first_approval_email.side_effect = Exception("Email service down")
+
+            # Should still succeed despite email error
+            result = await approve_application(
+                sample_application.id,
+                request,
+                board_member_user
+            )
+
+            assert result.application_id == sample_application.id
+            assert result.approvals_count == 1

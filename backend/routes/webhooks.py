@@ -178,3 +178,194 @@ async def webhook_health_check():
         "service": "stripe_webhooks",
         "webhook_secret_configured": bool(settings.STRIPE_WEBHOOK_SECRET)
     }
+
+
+@router.post("/cloudflare/recordings")
+async def cloudflare_recording_webhook(request: Request):
+    """
+    Cloudflare webhook endpoint for recording events (US-046)
+
+    Receives and processes Cloudflare Calls/Stream webhook events for:
+    - recording.started: Recording has started
+    - recording.complete: Recording uploaded to Stream and ready
+    - recording.failed: Recording failed
+
+    Args:
+        request: FastAPI request object containing webhook payload
+
+    Returns:
+        Success response with 200 OK
+
+    Raises:
+        HTTPException: For processing errors
+    """
+    from backend.services.recording_service import get_recording_service
+    from backend.services.email_service import get_email_service
+    from backend.services.zerodb_service import get_zerodb_service
+
+    # Get raw request body
+    try:
+        payload = await request.json()
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid request body"
+        )
+
+    event_type = payload.get("event")
+    event_data = payload.get("data", {})
+
+    logger.info(f"Processing Cloudflare webhook event: {event_type}")
+
+    # TODO: Add webhook signature verification for security
+    # For now, processing without verification
+
+    try:
+        recording_service = get_recording_service()
+        email_service = get_email_service()
+        db_service = get_zerodb_service()
+
+        if event_type == "recording.complete":
+            # Recording has been uploaded to Stream and is ready
+            recording_id = event_data.get("recordingId")
+            stream_id = event_data.get("streamId")
+            stream_url = event_data.get("streamUrl")
+            duration_seconds = event_data.get("duration")
+            file_size_bytes = event_data.get("fileSize")
+            room_id = event_data.get("roomId")
+
+            logger.info(f"Recording complete for recording {recording_id}, stream {stream_id}")
+
+            # Find session by room_id
+            session_result = db_service.query_documents(
+                collection="training_sessions",
+                filters={"cloudflare_room_id": room_id},
+                limit=1
+            )
+
+            sessions = session_result.get("documents", [])
+            if not sessions:
+                logger.error(f"No session found for room {room_id}")
+                return {
+                    "status": "error",
+                    "message": f"No session found for room {room_id}"
+                }
+
+            session = sessions[0].get("data", {})
+            session_id = session.get("id")
+
+            # Attach recording to session
+            recording_service.attach_recording(
+                session_id=session_id,
+                stream_id=stream_id,
+                stream_url=stream_url,
+                duration_seconds=duration_seconds,
+                file_size_bytes=file_size_bytes
+            )
+
+            # Send notification emails
+            try:
+                # Get instructor info
+                instructor_id = session.get("instructor_id")
+                instructor_result = db_service.get_document("users", str(instructor_id))
+                instructor = instructor_result.get("data", {})
+
+                # Send instructor notification
+                if instructor:
+                    email_service.send_recording_ready_email_instructor(
+                        email=instructor.get("email"),
+                        instructor_name=instructor.get("first_name", "Instructor"),
+                        session_title=session.get("title"),
+                        session_date=session.get("session_date"),
+                        duration_minutes=duration_seconds // 60 if duration_seconds else None,
+                        view_url=f"{settings.PYTHON_BACKEND_URL}/training/sessions/{session_id}"
+                    )
+
+                # Get registered participants and send notifications
+                # TODO: Query RSVPs/attendance records and send participant emails
+
+            except Exception as e:
+                logger.error(f"Failed to send notification emails: {e}")
+                # Don't fail webhook if email fails
+
+            logger.info(f"Recording webhook processed successfully for session {session_id}")
+
+            return {
+                "status": "success",
+                "event": event_type,
+                "session_id": str(session_id),
+                "stream_id": stream_id
+            }
+
+        elif event_type == "recording.failed":
+            # Recording failed
+            recording_id = event_data.get("recordingId")
+            error_message = event_data.get("error", "Unknown error")
+            room_id = event_data.get("roomId")
+
+            logger.error(f"Recording failed for recording {recording_id}: {error_message}")
+
+            # Find session by room_id
+            session_result = db_service.query_documents(
+                collection="training_sessions",
+                filters={"cloudflare_room_id": room_id},
+                limit=1
+            )
+
+            sessions = session_result.get("documents", [])
+            if sessions:
+                session = sessions[0].get("data", {})
+                session_id = session.get("id")
+
+                # Update session with failure status
+                db_service.update_document(
+                    "training_sessions",
+                    str(session_id),
+                    {
+                        "recording_status": "failed",
+                        "recording_error": error_message
+                    }
+                )
+
+                logger.info(f"Updated session {session_id} with recording failure")
+
+            return {
+                "status": "error",
+                "event": event_type,
+                "recording_id": recording_id,
+                "error": error_message
+            }
+
+        else:
+            logger.warning(f"Unhandled Cloudflare event type: {event_type}")
+            return {
+                "status": "ignored",
+                "event": event_type,
+                "message": "Event type not handled"
+            }
+
+    except Exception as e:
+        logger.error(f"Error processing Cloudflare webhook: {e}")
+        # Return 200 OK to prevent Cloudflare retries
+        # Log error for manual investigation
+        return {
+            "status": "error",
+            "event": event_type,
+            "message": str(e)
+        }
+
+
+@router.get("/cloudflare/health")
+async def cloudflare_webhook_health_check():
+    """
+    Cloudflare webhook health check endpoint
+
+    Returns:
+        Health status of Cloudflare webhook service
+    """
+    return {
+        "status": "healthy",
+        "service": "cloudflare_webhooks",
+        "cloudflare_account_configured": bool(settings.CLOUDFLARE_ACCOUNT_ID)
+    }

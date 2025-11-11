@@ -368,7 +368,8 @@ class ApprovalService:
         1. Update application status to 'approved'
         2. Set approved_at timestamp
         3. Upgrade user role to 'member'
-        4. Create audit log entry
+        4. Auto-subscribe to newsletter (US-059)
+        5. Create audit log entry
 
         Args:
             application_id: UUID of the application
@@ -433,6 +434,9 @@ class ApprovalService:
 
             # Trigger checkout session creation and payment email
             self._trigger_payment_flow(application_id, application)
+
+            # Auto-subscribe to newsletter (US-059)
+            self._trigger_newsletter_subscription(application_id, application)
 
             return updated_result.get("data", {})
 
@@ -606,6 +610,58 @@ class ApprovalService:
         except Exception as e:
             logger.error(f"Error in payment flow trigger: {e}")
             # Don't fail the approval if payment flow fails
+
+    def _trigger_newsletter_subscription(
+        self,
+        application_id: str,
+        application: Dict[str, Any]
+    ) -> None:
+        """
+        Trigger newsletter subscription after application approval (US-059)
+
+        Auto-subscribes approved member to Members Only list based on tier.
+
+        Args:
+            application_id: UUID of the application
+            application: Application data dictionary
+        """
+        try:
+            # Import here to avoid circular dependency
+            from backend.services.membership_webhook_handler import get_membership_webhook_handler
+            import asyncio
+
+            user_id = application.get("user_id")
+            tier = application.get("subscription_tier", "basic")
+
+            if not user_id:
+                logger.error(f"Cannot trigger newsletter subscription: missing user_id for application {application_id}")
+                return
+
+            # Get webhook handler
+            webhook_handler = get_membership_webhook_handler()
+
+            # Trigger newsletter subscription asynchronously
+            try:
+                # Run async function in event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(
+                    webhook_handler.handle_application_approved(application_id)
+                )
+                loop.close()
+
+                logger.info(
+                    f"Newsletter subscription triggered for application {application_id}: "
+                    f"subscribed to {result.get('newsletter_result', {}).get('subscribed_lists', [])}"
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to trigger newsletter subscription: {e}")
+                # Don't fail the approval if newsletter subscription fails
+
+        except Exception as e:
+            logger.error(f"Error in newsletter subscription trigger: {e}")
+            # Don't fail the approval if newsletter subscription fails
 
     def _create_audit_log(
         self,

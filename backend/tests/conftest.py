@@ -68,6 +68,7 @@ def test_env_vars() -> Dict[str, str]:
         "CLOUDFLARE_ACCOUNT_ID": "test_account_id",
         "CLOUDFLARE_API_TOKEN": "test_token_123",
         "CLOUDFLARE_CALLS_APP_ID": "test_calls_app",
+        "CLOUDFLARE_WEBHOOK_SECRET": "test_webhook_secret_xyz",
         "AINATIVE_API_KEY": "test_ainative_key",
         "AI_REGISTRY_API_KEY": "test_ai_registry_key",
         "OPENAI_API_KEY": "test_openai_key_sk_1234567890",
@@ -347,6 +348,27 @@ def freeze_time(monkeypatch):
         monkeypatch.setattr("datetime.datetime", FrozenDatetime)
 
     return _freeze
+
+
+# ============================================================================
+# FASTAPI TEST CLIENT FIXTURE
+# ============================================================================
+
+@pytest.fixture
+def client():
+    """
+    Provides a FastAPI TestClient for testing API endpoints.
+
+    Usage:
+        def test_endpoint(client):
+            response = client.get('/api/blog/posts')
+            assert response.status_code == 200
+    """
+    from fastapi.testclient import TestClient
+    from backend.app import app
+
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 # ============================================================================

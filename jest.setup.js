@@ -1,5 +1,9 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
+import { toHaveNoViolations } from 'jest-axe'
+
+// Add jest-axe matchers for accessibility testing
+expect.extend(toHaveNoViolations)
 
 // Mock react-markdown to avoid ES module issues
 jest.mock('react-markdown', () => {
@@ -44,6 +48,38 @@ global.IntersectionObserver = class IntersectionObserver {
   }
   unobserve() {}
 }
+
+// Mock HTMLCanvasElement for axe-core
+HTMLCanvasElement.prototype.getContext = jest.fn(() => {
+  return {
+    fillStyle: '',
+    fillRect: jest.fn(),
+    clearRect: jest.fn(),
+    getImageData: jest.fn(() => ({
+      data: [],
+    })),
+    putImageData: jest.fn(),
+    createImageData: jest.fn(() => []),
+    setTransform: jest.fn(),
+    drawImage: jest.fn(),
+    save: jest.fn(),
+    restore: jest.fn(),
+    beginPath: jest.fn(),
+    moveTo: jest.fn(),
+    lineTo: jest.fn(),
+    closePath: jest.fn(),
+    stroke: jest.fn(),
+    translate: jest.fn(),
+    scale: jest.fn(),
+    rotate: jest.fn(),
+    arc: jest.fn(),
+    fill: jest.fn(),
+    measureText: jest.fn(() => ({ width: 0 })),
+    transform: jest.fn(),
+    rect: jest.fn(),
+    clip: jest.fn(),
+  }
+})
 
 // Suppress console errors in tests
 const originalError = console.error

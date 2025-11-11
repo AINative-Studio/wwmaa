@@ -135,6 +135,14 @@ class AttendanceStatus(str, Enum):
     EXCUSED = "excused"
 
 
+class SessionStatus(str, Enum):
+    """Training session status"""
+    SCHEDULED = "scheduled"
+    LIVE = "live"
+    ENDED = "ended"
+    CANCELED = "canceled"
+
+
 class MediaType(str, Enum):
     """Media asset types"""
     IMAGE = "image"
@@ -143,6 +151,13 @@ class MediaType(str, Enum):
     CERTIFICATE = "certificate"
     BACKUP = "backup"
     OTHER = "other"
+
+
+class ArticleStatus(str, Enum):
+    """Article/blog post status"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
 
 
 class AuditAction(str, Enum):
@@ -512,6 +527,16 @@ class RSVP(BaseDocument):
 # TRAINING_SESSIONS COLLECTION
 # ============================================================================
 
+class RecordingStatus(str, Enum):
+    """Training session recording status"""
+    NOT_RECORDED = "not_recorded"
+    STARTING = "starting"
+    RECORDING = "recording"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
 class TrainingSession(BaseDocument):
     """Training session with video recording"""
     event_id: Optional[UUID] = Field(None, description="Reference to events collection")
@@ -525,17 +550,42 @@ class TrainingSession(BaseDocument):
     # Scheduling
     session_date: datetime = Field(..., description="Session date")
     duration_minutes: int = Field(..., ge=1, le=480, description="Duration in minutes")
+    session_status: str = Field(default="scheduled", description="Session status (scheduled/live/ended)")
 
     # Content
     discipline: str = Field(..., max_length=100, description="Martial arts discipline")
     topics: List[str] = Field(default_factory=list, description="Topics covered")
     skill_level: Optional[str] = Field(None, max_length=50, description="Skill level (beginner/intermediate/advanced)")
 
-    # Video Recording
+    # Live Session - Cloudflare Calls Integration (US-043)
+    cloudflare_room_id: Optional[str] = Field(None, description="Cloudflare Calls room ID for live sessions")
+    room_url: Optional[str] = Field(None, description="Live session room URL")
+    is_live: bool = Field(default=False, description="Whether session is currently live")
+    started_at: Optional[datetime] = Field(None, description="Actual session start timestamp")
+    ended_at: Optional[datetime] = Field(None, description="Actual session end timestamp")
+
+    # Recording Configuration (US-046)
+    recording_enabled: bool = Field(default=True, description="Whether to record this session")
+    recording_id: Optional[str] = Field(None, description="Cloudflare recording ID")
+    recording_status: RecordingStatus = Field(
+        default=RecordingStatus.NOT_RECORDED,
+        description="Recording status"
+    )
+    recording_started_at: Optional[datetime] = Field(None, description="Recording start timestamp")
+    recording_ended_at: Optional[datetime] = Field(None, description="Recording end timestamp")
+    recording_error: Optional[str] = Field(None, max_length=1000, description="Recording error message if failed")
+    recording_retry_count: int = Field(default=0, ge=0, le=3, description="Number of recording retry attempts")
+
+    # Video On Demand (VOD) - Cloudflare Stream (US-046)
     cloudflare_stream_id: Optional[str] = Field(None, description="Cloudflare Stream video ID")
-    video_url: Optional[HttpUrl] = Field(None, description="Video playback URL")
-    video_duration_seconds: Optional[int] = Field(None, ge=0, description="Video duration")
-    recording_status: str = Field(default="not_recorded", description="Recording status")
+    vod_stream_url: Optional[str] = Field(None, description="VOD playback URL (Cloudflare Stream)")
+    video_url: Optional[HttpUrl] = Field(None, description="Alternative video playback URL")
+    video_duration_seconds: Optional[int] = Field(None, ge=0, description="Video duration in seconds")
+    recording_file_size_bytes: Optional[int] = Field(None, ge=0, description="Recording file size in bytes")
+
+    # Chat Recording (US-046)
+    chat_recording_url: Optional[str] = Field(None, description="Chat transcript JSON file URL in ZeroDB Object Storage")
+    chat_message_count: int = Field(default=0, ge=0, description="Number of chat messages in session")
 
     # Access Control
     is_public: bool = Field(default=False, description="Public access")
@@ -544,6 +594,7 @@ class TrainingSession(BaseDocument):
     # Metadata
     attendance_count: int = Field(default=0, ge=0, description="Attendance count")
     tags: List[str] = Field(default_factory=list, description="Session tags")
+    max_participants: Optional[int] = Field(None, ge=1, description="Maximum participants allowed")
 
 
 # ============================================================================
@@ -552,21 +603,16 @@ class TrainingSession(BaseDocument):
 
 class SessionAttendance(BaseDocument):
     """Training session attendance record"""
-    training_session_id: UUID = Field(..., description="Reference to training_sessions collection")
+    session_id: UUID = Field(..., description="Reference to training_sessions collection")
     user_id: UUID = Field(..., description="Reference to users collection")
-    status: AttendanceStatus = Field(..., description="Attendance status")
 
-    # Check-in
-    checked_in_at: Optional[datetime] = Field(None, description="Check-in timestamp")
-    checked_out_at: Optional[datetime] = Field(None, description="Check-out timestamp")
+    # Live Session Tracking
+    joined_at: Optional[datetime] = Field(None, description="When user joined live session")
+    left_at: Optional[datetime] = Field(None, description="When user left live session")
+    watch_time_seconds: int = Field(default=0, ge=0, description="Total watch time in seconds")
 
     # Details
     notes: Optional[str] = Field(None, max_length=500, description="Attendance notes")
-    participation_score: Optional[int] = Field(None, ge=0, le=100, description="Participation score (0-100)")
-
-    # Video Tracking
-    video_watch_percentage: Optional[float] = Field(None, ge=0, le=100, description="Video completion percentage")
-    last_watched_position: Optional[int] = Field(None, ge=0, description="Last watched position in seconds")
 
 
 # ============================================================================
@@ -614,6 +660,7 @@ class SourceType(str, Enum):
     """Content source types for vector search indexing"""
     EVENT = "event"
     ARTICLE = "article"
+    BLOG_POST = "blog_post"
     PROFILE = "profile"
     VIDEO = "video"
     TRAINING_SESSION = "training_session"
@@ -757,6 +804,109 @@ class ContentIndex(BaseDocument):
         return v
 
 
+
+# ============================================================================
+# ARTICLES COLLECTION - Blog Posts from BeeHiiv
+# ============================================================================
+
+class ArticleAuthor(BaseModel):
+    """Article author information"""
+    model_config = ConfigDict(use_enum_values=True)
+
+    name: str = Field(..., min_length=1, max_length=200, description="Author name")
+    email: Optional[EmailStr] = Field(None, description="Author email")
+    avatar_url: Optional[str] = Field(None, description="Author avatar URL")
+    bio: Optional[str] = Field(None, max_length=1000, description="Author bio")
+
+
+class ArticleSEOMetadata(BaseModel):
+    """SEO metadata for articles"""
+    model_config = ConfigDict(use_enum_values=True)
+
+    meta_title: Optional[str] = Field(None, max_length=200, description="Meta title (override article title)")
+    meta_description: Optional[str] = Field(None, max_length=500, description="Meta description")
+    og_title: Optional[str] = Field(None, max_length=200, description="Open Graph title")
+    og_description: Optional[str] = Field(None, max_length=500, description="Open Graph description")
+    og_image: Optional[str] = Field(None, description="Open Graph image URL")
+    twitter_card: Optional[str] = Field(None, max_length=50, description="Twitter card type (summary/summary_large_image)")
+    twitter_title: Optional[str] = Field(None, max_length=200, description="Twitter title")
+    twitter_description: Optional[str] = Field(None, max_length=500, description="Twitter description")
+    twitter_image: Optional[str] = Field(None, description="Twitter image URL")
+    keywords: List[str] = Field(default_factory=list, description="SEO keywords")
+    canonical_url: Optional[str] = Field(None, description="Canonical URL")
+
+
+class Article(BaseDocument):
+    """
+    Blog post/article synced from BeeHiiv
+
+    This model stores blog content synced from BeeHiiv via webhooks.
+    Posts are indexed for search and displayed on the website blog.
+    """
+    # BeeHiiv Integration
+    beehiiv_post_id: str = Field(..., min_length=1, max_length=200, description="BeeHiiv post ID (unique)")
+    beehiiv_url: Optional[str] = Field(None, description="Canonical BeeHiiv URL")
+
+    # Content
+    title: str = Field(..., min_length=1, max_length=500, description="Article title")
+    slug: str = Field(..., min_length=1, max_length=300, description="URL-friendly slug (unique)")
+    excerpt: Optional[str] = Field(None, max_length=1000, description="Short excerpt/summary")
+    content: str = Field(..., min_length=1, description="Full article content (HTML or Markdown)")
+    content_format: str = Field(default="html", max_length=20, description="Content format (html/markdown)")
+
+    # Author
+    author: ArticleAuthor = Field(..., description="Article author information")
+
+    # Media
+    featured_image_url: Optional[str] = Field(None, description="Featured image URL (stored in ZeroDB)")
+    thumbnail_url: Optional[str] = Field(None, description="Thumbnail URL (300x200, stored in ZeroDB)")
+    original_featured_image_url: Optional[str] = Field(None, description="Original BeeHiiv image URL")
+    gallery_images: List[str] = Field(default_factory=list, description="Gallery image URLs")
+
+    # Categorization
+    category: Optional[str] = Field(None, max_length=100, description="Article category")
+    tags: List[str] = Field(default_factory=list, description="Article tags")
+
+    # Publishing
+    status: ArticleStatus = Field(default=ArticleStatus.DRAFT, description="Article status")
+    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
+
+    # Metrics
+    view_count: int = Field(default=0, ge=0, description="Number of views")
+    read_time_minutes: int = Field(default=0, ge=0, description="Estimated read time in minutes")
+
+    # SEO
+    seo_metadata: ArticleSEOMetadata = Field(
+        default_factory=ArticleSEOMetadata,
+        description="SEO metadata (title, description, OG tags)"
+    )
+
+    # Sync Information
+    last_synced_at: datetime = Field(default_factory=datetime.utcnow, description="Last sync timestamp")
+    sync_source: str = Field(default="beehiiv", max_length=50, description="Sync source (beehiiv/manual)")
+
+    # Content Index Reference (for search)
+    indexed_at: Optional[datetime] = Field(None, description="Search index timestamp")
+    index_ids: List[UUID] = Field(default_factory=list, description="References to content_index documents")
+
+    @field_validator('slug')
+    @classmethod
+    def validate_slug_format(cls, v):
+        """Validate slug is URL-friendly (lowercase, hyphens, no special chars)"""
+        import re
+        if not re.match(r'^[a-z0-9-]+$', v):
+            raise ValueError("Slug must contain only lowercase letters, numbers, and hyphens")
+        return v
+
+    @field_validator('read_time_minutes')
+    @classmethod
+    def validate_read_time_positive(cls, v):
+        """Ensure read time is non-negative"""
+        if v < 0:
+            raise ValueError("read_time_minutes must be non-negative")
+        return v
+
+
 # ============================================================================
 # MEDIA_ASSETS COLLECTION
 # ============================================================================
@@ -866,6 +1016,9 @@ class WebhookEvent(BaseDocument):
 
 def get_all_models():
     """Return all Pydantic models for ZeroDB collections"""
+    # Import newsletter models defined later in file
+    from backend.models.schemas import NewsletterSubscription
+
     return {
         "users": User,
         "applications": Application,
@@ -882,6 +1035,9 @@ def get_all_models():
         "media_assets": MediaAsset,
         "audit_logs": AuditLog,
         "webhook_events": WebhookEvent,
+        "newsletter_subscriptions": NewsletterSubscription,
+        "newsletter_subscribers": NewsletterSubscriber,
+        "beehiiv_config": BeeHiivConfig,
     }
 
 
@@ -889,3 +1045,177 @@ def get_model_by_collection(collection_name: str):
     """Get Pydantic model by collection name"""
     models = get_all_models()
     return models.get(collection_name)
+
+
+# ============================================================================
+# NEWSLETTER SUBSCRIPTIONS COLLECTION (US-058 - Double Opt-In)
+# ============================================================================
+
+class NewsletterSubscriptionStatus(str, Enum):
+    """Newsletter subscription status for public subscribers"""
+    PENDING = "pending"
+    ACTIVE = "active"
+    UNSUBSCRIBED = "unsubscribed"
+    BOUNCED = "bounced"
+
+
+class NewsletterSubscriptionSource(str, Enum):
+    """Newsletter subscription source"""
+    WEBSITE = "website"
+    CHECKOUT = "checkout"
+    MEMBER_SIGNUP = "member_signup"
+    ADMIN = "admin"
+
+
+class NewsletterSubscription(BaseDocument):
+    """
+    Newsletter subscription record with double opt-in (US-058)
+
+    For public newsletter subscriptions requiring email confirmation.
+    Separate from NewsletterSubscriber which is for member auto-subscriptions.
+    """
+    email: EmailStr = Field(..., description="Subscriber email address")
+    name: Optional[str] = Field(None, max_length=200, description="Subscriber name")
+
+    # Interests/Preferences
+    interests: List[str] = Field(
+        default_factory=list,
+        description="Subscriber interests (e.g., ['events', 'training', 'articles', 'news'])"
+    )
+
+    # Status and Confirmation
+    status: NewsletterSubscriptionStatus = Field(
+        default=NewsletterSubscriptionStatus.PENDING,
+        description="Subscription status"
+    )
+    confirmation_token: Optional[str] = Field(None, description="JWT token for email confirmation")
+    confirmation_token_expires_at: Optional[datetime] = Field(None, description="Token expiration timestamp")
+
+    # Timestamps
+    subscribed_at: datetime = Field(default_factory=datetime.utcnow, description="Initial subscription request timestamp")
+    confirmed_at: Optional[datetime] = Field(None, description="Email confirmation timestamp")
+    unsubscribed_at: Optional[datetime] = Field(None, description="Unsubscription timestamp")
+
+    # Source and Tracking
+    subscription_source: NewsletterSubscriptionSource = Field(
+        default=NewsletterSubscriptionSource.WEBSITE,
+        description="Source of subscription"
+    )
+
+    # GDPR Compliance
+    ip_address_hash: Optional[str] = Field(None, max_length=64, description="SHA256 hash of subscriber IP address")
+    user_agent: Optional[str] = Field(None, max_length=500, description="Browser user agent string")
+    consent_given: bool = Field(default=True, description="Whether GDPR consent was given")
+    consent_timestamp: Optional[datetime] = Field(None, description="Timestamp when consent was given")
+
+    # BeeHiiv Integration
+    beehiiv_subscriber_id: Optional[str] = Field(None, description="BeeHiiv subscriber ID")
+
+    # User Association
+    user_id: Optional[UUID] = Field(None, description="Reference to users collection (if registered user)")
+
+    # Unsubscribe Details
+    unsubscribe_reason: Optional[str] = Field(None, max_length=500, description="Reason for unsubscribing")
+
+    @field_validator('email')
+    @classmethod
+    def email_lowercase(cls, v):
+        """Convert email to lowercase"""
+        return v.lower()
+
+
+# ============================================================================
+# NEWSLETTER SUBSCRIBERS COLLECTION
+# ============================================================================
+
+class NewsletterSubscriberStatus(str, Enum):
+    """Newsletter subscriber status"""
+    ACTIVE = "active"
+    UNSUBSCRIBED = "unsubscribed"
+    BOUNCED = "bounced"
+    PENDING = "pending"
+
+
+class NewsletterSubscriber(BaseDocument):
+    """Newsletter subscriber record"""
+    email: EmailStr = Field(..., description="Subscriber email address")
+    name: Optional[str] = Field(None, max_length=200, description="Subscriber name")
+
+    # List Membership
+    list_ids: List[str] = Field(default_factory=list, description="BeeHiiv list IDs subscriber belongs to")
+
+    # Status
+    status: NewsletterSubscriberStatus = Field(
+        default=NewsletterSubscriberStatus.ACTIVE,
+        description="Subscription status"
+    )
+
+    # Timestamps
+    subscribed_at: datetime = Field(default_factory=datetime.utcnow, description="Initial subscription timestamp")
+    unsubscribed_at: Optional[datetime] = Field(None, description="Unsubscription timestamp")
+
+    # BeeHiiv Integration
+    beehiiv_subscriber_id: Optional[str] = Field(None, description="BeeHiiv subscriber ID")
+    last_synced_at: Optional[datetime] = Field(None, description="Last sync with BeeHiiv timestamp")
+
+    # User Association
+    user_id: Optional[UUID] = Field(None, description="Reference to users collection (if registered user)")
+
+    # Custom Metadata
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Custom metadata (preferences, source, etc.)"
+    )
+
+    # Engagement Tracking
+    email_opens: int = Field(default=0, ge=0, description="Total email opens")
+    email_clicks: int = Field(default=0, ge=0, description="Total email clicks")
+    last_opened_at: Optional[datetime] = Field(None, description="Last email open timestamp")
+    last_clicked_at: Optional[datetime] = Field(None, description="Last email click timestamp")
+
+    @field_validator('email')
+    @classmethod
+    def email_lowercase(cls, v):
+        """Convert email to lowercase"""
+        return v.lower()
+
+
+# ============================================================================
+# BEEHIIV CONFIGURATION COLLECTION
+# ============================================================================
+
+class BeeHiivConfig(BaseDocument):
+    """BeeHiiv service configuration"""
+    # API Configuration
+    api_key: str = Field(..., description="BeeHiiv API key (encrypted in production)")
+    publication_id: str = Field(..., description="BeeHiiv publication ID")
+
+    # Email List IDs
+    list_ids: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Email list IDs mapped by type (general, members_only, instructors)"
+    )
+
+    # Domain Configuration
+    custom_domain: Optional[str] = Field(None, max_length=255, description="Custom newsletter domain (e.g., newsletter.wwmaa.com)")
+    from_email: str = Field(default="newsletter@wwmaa.com", description="From email address")
+    from_name: str = Field(default="WWMAA Team", max_length=100, description="From name")
+
+    # DNS Records Status
+    dkim_configured: bool = Field(default=False, description="DKIM record configured")
+    spf_configured: bool = Field(default=False, description="SPF record configured")
+    dmarc_configured: bool = Field(default=False, description="DMARC record configured")
+    domain_verified: bool = Field(default=False, description="Custom domain verified")
+
+    # Feature Flags
+    is_active: bool = Field(default=True, description="Service active status")
+    auto_sync_enabled: bool = Field(default=True, description="Auto-sync subscribers")
+    welcome_email_enabled: bool = Field(default=True, description="Send welcome emails")
+
+    # Sync Configuration
+    last_sync_at: Optional[datetime] = Field(None, description="Last subscriber sync timestamp")
+    sync_frequency_hours: int = Field(default=24, ge=1, le=168, description="Sync frequency in hours")
+
+    # Metadata
+    setup_completed_at: Optional[datetime] = Field(None, description="Initial setup completion timestamp")
+    setup_by: Optional[UUID] = Field(None, description="Admin who completed setup")

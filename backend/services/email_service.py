@@ -1965,6 +1965,164 @@ class EmailService:
 
         return self._send_email(to_email=email, subject=f"Spot Available: {event_title}", html_body=html_body, text_body=text_body, tag="waitlist-spot")
 
+    def send_newsletter_confirmation(
+        self,
+        email: str,
+        name: str,
+        confirmation_url: str
+    ) -> Dict[str, Any]:
+        """
+        Send newsletter subscription confirmation email (US-058)
+
+        Args:
+            email: Subscriber email address
+            name: Subscriber name
+            confirmation_url: URL to confirm subscription
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #003366;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #007bff;
+                    color: white;
+                    padding: 12px 30px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                    font-weight: bold;
+                }}
+                .button:hover {{
+                    background-color: #0056b3;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                }}
+                .benefits {{
+                    background-color: #e8f4f8;
+                    padding: 15px;
+                    border-left: 4px solid #007bff;
+                    margin: 20px 0;
+                }}
+                ul {{
+                    margin: 10px 0;
+                    padding-left: 20px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Confirm Your Newsletter Subscription</h1>
+            </div>
+            <div class="content">
+                <h2>Hi {name},</h2>
+                <p>Thank you for subscribing to the WWMAA newsletter! We're excited to have you join our community of martial arts enthusiasts.</p>
+
+                <p style="font-weight: bold; color: #003366;">Please confirm your email address by clicking the button below:</p>
+
+                <div style="text-align: center;">
+                    <a href="{confirmation_url}" class="button">Confirm Subscription</a>
+                </div>
+
+                <p style="font-size: 14px; color: #666;">
+                    Or copy and paste this link into your browser:<br>
+                    <a href="{confirmation_url}">{confirmation_url}</a>
+                </p>
+
+                <div class="benefits">
+                    <h3 style="margin-top: 0;">What to Expect:</h3>
+                    <ul>
+                        <li>Latest news about martial arts events and seminars</li>
+                        <li>Training tips and techniques from expert instructors</li>
+                        <li>Community updates and member spotlights</li>
+                        <li>Exclusive offers and early access to events</li>
+                    </ul>
+                </div>
+
+                <div class="footer">
+                    <p><strong>Note:</strong> This confirmation link will expire in 24 hours.</p>
+                    <p>If you didn't subscribe to this newsletter, you can safely ignore this email.</p>
+                    <p style="margin-top: 20px;">
+                        Questions? Contact us at support@wwmaa.com<br>
+                        Visit our website: <a href="https://wwmaa.com">https://wwmaa.com</a>
+                    </p>
+                    <p style="margin-top: 20px; font-size: 11px; color: #999;">
+                        World Wide Martial Arts Association<br>
+                        Privacy Policy: <a href="https://wwmaa.com/privacy">https://wwmaa.com/privacy</a>
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Confirm Your Newsletter Subscription
+
+        Hi {name},
+
+        Thank you for subscribing to the WWMAA newsletter! We're excited to have you join our community.
+
+        Please confirm your email address by clicking this link:
+        {confirmation_url}
+
+        What to Expect:
+        - Latest news about martial arts events and seminars
+        - Training tips and techniques from expert instructors
+        - Community updates and member spotlights
+        - Exclusive offers and early access to events
+
+        Note: This confirmation link will expire in 24 hours.
+
+        If you didn't subscribe to this newsletter, you can safely ignore this email.
+
+        Questions? Contact us at support@wwmaa.com
+        Visit our website: https://wwmaa.com
+
+        World Wide Martial Arts Association
+        Privacy Policy: https://wwmaa.com/privacy
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject="Please confirm your newsletter subscription",
+            html_body=html_body,
+            text_body=text_body,
+            tag="newsletter-confirmation"
+        )
+
 
 # Global email service instance (singleton pattern)
 _email_service_instance: Optional[EmailService] = None
@@ -1983,3 +2141,130 @@ def get_email_service() -> EmailService:
         _email_service_instance = EmailService()
 
     return _email_service_instance
+
+    def send_recording_ready_email_instructor(
+        self,
+        email: str,
+        instructor_name: str,
+        session_title: str,
+        session_date: str,
+        duration_minutes: Optional[int] = None,
+        view_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send recording ready notification to instructor (US-046)
+
+        Args:
+            email: Instructor email address
+            instructor_name: Instructor name
+            session_title: Training session title
+            session_date: Session date
+            duration_minutes: Recording duration in minutes
+            view_url: URL to view the recording
+
+        Returns:
+            Postmark API response
+        """
+        subject = f"Recording Ready: {session_title}"
+
+        duration_text = f" ({duration_minutes} minutes)" if duration_minutes else ""
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .success {{background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;}}
+            .button {{display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Recording Ready</h1></div>
+            <div class="content">
+                <h2>Hi {instructor_name},</h2>
+                <div class="success">
+                    <strong>Your training session recording is now available!</strong>
+                </div>
+                <p>The recording for your session "<strong>{session_title}</strong>" has been processed and is ready to view{duration_text}.</p>
+                <p><strong>Session Date:</strong> {session_date}</p>
+                <p>Members who missed the live session can now watch the recording on demand.</p>
+                {f'<div style="text-align: center;"><a href="{view_url}" class="button">View Recording</a></div>' if view_url else ''}
+                <p>The recording is available in your instructor dashboard and will be accessible to all registered members.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {instructor_name},\n\nYour recording for '{session_title}' is ready{duration_text}!\n\nSession Date: {session_date}\n\n{f'View: {view_url}' if view_url else ''}"
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="recording-ready-instructor"
+        )
+
+    def send_recording_ready_email_participant(
+        self,
+        email: str,
+        participant_name: str,
+        session_title: str,
+        session_date: str,
+        duration_minutes: Optional[int] = None,
+        view_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send recording available notification to participant (US-046)
+
+        Args:
+            email: Participant email address
+            participant_name: Participant name
+            session_title: Training session title
+            session_date: Session date
+            duration_minutes: Recording duration in minutes
+            view_url: URL to view the recording
+
+        Returns:
+            Postmark API response
+        """
+        subject = f"Session Recording Available: {session_title}"
+
+        duration_text = f" ({duration_minutes} minutes)" if duration_minutes else ""
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><style>
+            body {{font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;}}
+            .header {{background-color: #8B0000; color: white; padding: 20px; text-align: center;}}
+            .content {{background-color: #f9f9f9; padding: 30px;}}
+            .info {{background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;}}
+            .button {{display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;}}
+        </style></head>
+        <body>
+            <div class="header"><h1>Recording Now Available</h1></div>
+            <div class="content">
+                <h2>Hi {participant_name},</h2>
+                <div class="info">
+                    <strong>The recording for "{session_title}" is now available to watch!</strong>
+                </div>
+                <p>Missed the live session or want to review the material? The full recording is now available{duration_text}.</p>
+                <p><strong>Session Date:</strong> {session_date}</p>
+                {f'<div style="text-align: center;"><a href="{view_url}" class="button">Watch Recording</a></div>' if view_url else ''}
+                <p>Access the recording anytime from your member dashboard.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"Hi {participant_name},\n\nThe recording for '{session_title}' is now available{duration_text}!\n\nSession Date: {session_date}\n\n{f'Watch: {view_url}' if view_url else ''}"
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="recording-ready-participant"
+        )

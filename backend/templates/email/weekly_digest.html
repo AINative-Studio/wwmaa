@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WWMAA Weekly Digest</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: 20px auto;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: bold;
+        }
+        .header .date {
+            margin: 8px 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .greeting {
+            font-size: 16px;
+            margin-bottom: 25px;
+        }
+        .section {
+            margin: 30px 0;
+        }
+        .section-title {
+            color: #1a1a2e;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #16213e;
+        }
+        .article {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid #16213e;
+        }
+        .article h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            color: #1a1a2e;
+        }
+        .article p {
+            margin: 0 0 10px;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        .article a {
+            color: #16213e;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .article a:hover {
+            text-decoration: underline;
+        }
+        .event {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+        }
+        .event h3 {
+            margin: 0 0 8px;
+            font-size: 17px;
+            color: #1a1a2e;
+        }
+        .event-meta {
+            font-size: 14px;
+            color: #666;
+            margin: 5px 0;
+        }
+        .event-meta strong {
+            color: #333;
+        }
+        .spotlight {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .spotlight h3 {
+            margin: 0 0 15px;
+            font-size: 20px;
+            color: #1a1a2e;
+        }
+        .spotlight p {
+            margin: 10px 0;
+            font-size: 15px;
+            font-style: italic;
+        }
+        .cta {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #16213e;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 15px;
+            margin: 5px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 25px 30px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer a {
+            color: #16213e;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WWMAA Weekly Digest</h1>
+            <div class="date">{{current_date}}</div>
+        </div>
+
+        <div class="content">
+            <div class="greeting">
+                <p>Hello {{subscriber_name}},</p>
+                <p>Here's what's happening this week in the WWMAA community!</p>
+            </div>
+
+            <!-- Top Articles Section -->
+            <div class="section">
+                <h2 class="section-title">Featured Articles</h2>
+
+                {{#articles}}
+                <div class="article">
+                    <h3>{{title}}</h3>
+                    <p>{{excerpt}}</p>
+                    <a href="{{url}}">Read More →</a>
+                </div>
+                {{/articles}}
+
+                {{^articles}}
+                <p>Check back soon for new articles!</p>
+                {{/articles}}
+            </div>
+
+            <!-- Upcoming Events Section -->
+            <div class="section">
+                <h2 class="section-title">Upcoming Events</h2>
+
+                {{#events}}
+                <div class="event">
+                    <h3>{{event_title}}</h3>
+                    <div class="event-meta">
+                        <strong>Date:</strong> {{event_date}}<br>
+                        <strong>Location:</strong> {{event_location}}<br>
+                        {{#event_instructor}}
+                        <strong>Instructor:</strong> {{event_instructor}}
+                        {{/event_instructor}}
+                    </div>
+                    <p>{{event_description}}</p>
+                    <a href="{{event_url}}">View Details & RSVP →</a>
+                </div>
+                {{/events}}
+
+                {{^events}}
+                <p>No upcoming events at this time. Stay tuned!</p>
+                {{/events}}
+            </div>
+
+            <!-- Member Spotlight Section -->
+            {{#spotlight_member}}
+            <div class="section">
+                <h2 class="section-title">Member Spotlight</h2>
+
+                <div class="spotlight">
+                    <h3>{{spotlight_name}}</h3>
+                    <p>{{spotlight_discipline}} | {{spotlight_rank}}</p>
+                    <p>"{{spotlight_quote}}"</p>
+                    <a href="{{spotlight_url}}">Read Their Story →</a>
+                </div>
+            </div>
+            {{/spotlight_member}}
+
+            <!-- Training Tips Section -->
+            {{#training_tip}}
+            <div class="section">
+                <h2 class="section-title">Training Tip of the Week</h2>
+
+                <div class="article">
+                    <h3>{{tip_title}}</h3>
+                    <p>{{tip_content}}</p>
+                    {{#tip_url}}
+                    <a href="{{tip_url}}">Learn More →</a>
+                    {{/tip_url}}
+                </div>
+            </div>
+            {{/training_tip}}
+
+            <!-- Call to Action -->
+            <div class="cta">
+                <a href="{{events_url}}" class="cta-button">Browse All Events</a>
+                <a href="{{blog_url}}" class="cta-button">Read More Articles</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>World Wing Martial Arts Association<br>
+            Building a Global Martial Arts Community</p>
+
+            <p style="margin-top: 15px;">
+                <a href="{{website_url}}">Visit Website</a> |
+                <a href="{{contact_url}}">Contact Us</a> |
+                <a href="{{preferences_url}}">Email Preferences</a>
+            </p>
+
+            <p style="font-size: 12px; margin-top: 15px; color: #999;">
+                You're receiving this because you're subscribed to the WWMAA newsletter.<br>
+                <a href="{{unsubscribe_url}}">Unsubscribe</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
