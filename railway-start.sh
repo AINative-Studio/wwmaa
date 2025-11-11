@@ -36,7 +36,14 @@ check_var "JWT_SECRET" || MISSING=$((MISSING+1))
 check_var "JWT_ALGORITHM" || MISSING=$((MISSING+1))
 check_var "BEEHIIV_API_KEY" || MISSING=$((MISSING+1))
 check_var "AINATIVE_API_KEY" || MISSING=$((MISSING+1))
-check_var "PORT" || MISSING=$((MISSING+1))
+
+# PORT is optional - Railway may not always set it, we default to 8000
+if [ -z "${PORT}" ]; then
+    echo "⚠️  PORT not set by Railway, using default: 8000"
+    export PORT=8000
+else
+    echo "✅ Found: PORT=${PORT}"
+fi
 
 echo "=========================================="
 if [ $MISSING -gt 0 ]; then

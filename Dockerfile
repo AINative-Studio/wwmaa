@@ -78,4 +78,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 # Start command with Railway debug script
 # This script validates environment variables and provides detailed startup logging
-CMD ["/app/railway-start.sh"]
+# Using shell form to ensure environment variables are properly expanded
+CMD ["/bin/bash", "/app/railway-start.sh"]
