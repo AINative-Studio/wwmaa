@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status, Depends, Header
+from fastapi import APIRouter, HTTPException, status, Depends, Header, Response
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from passlib.context import CryptContext
 
@@ -25,6 +25,7 @@ from backend.middleware.rate_limit import (
     rate_limit_registration,
     rate_limit_password_reset
 )
+from backend.middleware.csrf import rotate_csrf_token
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -47,12 +48,23 @@ class RegisterRequest(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100, description="First name")
     last_name: str = Field(..., min_length=1, max_length=100, description="Last name")
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
+    terms_accepted: bool = Field(..., description="User must accept Terms of Service")
+    terms_version: str = Field(default="1.0", description="Version of Terms of Service accepted")
+    privacy_version: str = Field(default="1.0", description="Version of Privacy Policy accepted")
 
     @field_validator('email')
     @classmethod
     def email_lowercase(cls, v):
         """Convert email to lowercase"""
         return v.lower()
+
+    @field_validator('terms_accepted')
+    @classmethod
+    def validate_terms_accepted(cls, v):
+        """Ensure terms are accepted"""
+        if not v:
+            raise ValueError("You must accept the Terms of Service and Privacy Policy to register")
+        return v
 
     @field_validator('password')
     @classmethod
@@ -338,6 +350,7 @@ async def register(request: RegisterRequest) -> RegisterResponse:
 
         # Create user document
         user_id = str(uuid4())
+        now = datetime.utcnow()
         user_data = {
             "email": request.email,
             "password_hash": password_hash,
@@ -349,10 +362,15 @@ async def register(request: RegisterRequest) -> RegisterResponse:
             "first_name": request.first_name,
             "last_name": request.last_name,
             "phone": request.phone,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
             "last_login": None,
-            "profile_id": None
+            "profile_id": None,
+            # Terms acceptance tracking
+            "terms_accepted_at": now.isoformat() if request.terms_accepted else None,
+            "terms_version_accepted": request.terms_version if request.terms_accepted else None,
+            "privacy_accepted_at": now.isoformat() if request.terms_accepted else None,
+            "privacy_version_accepted": request.privacy_version if request.terms_accepted else None
         }
 
         # Store user in ZeroDB
@@ -1092,7 +1110,7 @@ async def refresh_token(request: RefreshTokenRequest) -> RefreshTokenResponse:
     description="Authenticate user with email and password, return JWT tokens"
 )
 @rate_limit_login()
-async def login(request: LoginRequest) -> LoginResponse:
+async def login(request: LoginRequest, response: Response) -> LoginResponse:
     """
     Authenticate user and generate JWT tokens
 
@@ -1246,6 +1264,15 @@ async def login(request: LoginRequest) -> LoginResponse:
         )
 
         logger.info(f"Login successful for {request.email}")
+
+        # Rotate CSRF token after successful login (US-071)
+        # This prevents session fixation attacks
+        try:
+            rotate_csrf_token(response)
+            logger.debug("CSRF token rotated after successful login")
+        except Exception as e:
+            # Log error but don't fail login if CSRF rotation fails
+            logger.warning(f"Failed to rotate CSRF token after login: {e}")
 
         # Prepare user data for response (exclude sensitive fields)
         user_response = {

@@ -209,6 +209,12 @@ class User(BaseDocument):
     profile_id: Optional[UUID] = Field(None, description="Reference to profiles collection")
     reapplication_count: int = Field(default=0, ge=0, description="Number of membership reapplications")
 
+    # Legal acceptance tracking
+    terms_accepted_at: Optional[datetime] = Field(None, description="Timestamp when user accepted Terms of Service")
+    terms_version_accepted: Optional[str] = Field(None, description="Version of Terms of Service accepted (e.g., '1.0')")
+    privacy_accepted_at: Optional[datetime] = Field(None, description="Timestamp when user accepted Privacy Policy")
+    privacy_version_accepted: Optional[str] = Field(None, description="Version of Privacy Policy accepted (e.g., '1.0')")
+
     @field_validator('email')
     @classmethod
     def email_lowercase(cls, v):

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { TermsAcceptanceCheckbox } from '@/components/legal/terms-acceptance-checkbox';
 
 type Step = 1 | 2 | 3;
 
@@ -454,33 +455,13 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      id="terms"
-                      checked={formData.termsAccepted}
-                      onCheckedChange={(checked) => updateField('termsAccepted', checked as boolean)}
-                    />
-                    <div className="flex-1">
-                      <Label
-                        htmlFor="terms"
-                        className={`text-sm font-normal cursor-pointer ${
-                          errors.termsAccepted ? 'text-danger' : 'text-gray-700'
-                        }`}
-                      >
-                        I agree to the{' '}
-                        <Link href="/terms" className="text-dojo-navy font-medium hover:text-dojo-orange">
-                          Terms and Conditions
-                        </Link>{' '}
-                        and{' '}
-                        <Link href="/privacy" className="text-dojo-navy font-medium hover:text-dojo-orange">
-                          Privacy Policy
-                        </Link>
-                      </Label>
-                      {errors.termsAccepted && (
-                        <p className="mt-1 text-sm text-danger">{errors.termsAccepted}</p>
-                      )}
-                    </div>
-                  </div>
+                  <TermsAcceptanceCheckbox
+                    checked={formData.termsAccepted}
+                    onCheckedChange={(checked) => updateField('termsAccepted', checked)}
+                    showError={!!errors.termsAccepted}
+                    errorMessage={errors.termsAccepted}
+                    id="terms"
+                  />
                 </div>
               </div>
             )}

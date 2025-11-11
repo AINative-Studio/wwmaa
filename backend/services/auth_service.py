@@ -256,6 +256,11 @@ class AuthService:
         if payload.get("type") != "access":
             raise TokenInvalidError("Invalid token type")
 
+        # Check if user is blacklisted (for account deletion, etc.)
+        user_id = payload.get("user_id")
+        if user_id and self.is_user_blacklisted(user_id):
+            raise TokenBlacklistedError("User account has been deleted or suspended")
+
         return payload
 
     def verify_refresh_token(self, token: str) -> Dict[str, Any]:
@@ -288,6 +293,11 @@ class AuthService:
         # Verify token type
         if payload.get("type") != "refresh":
             raise TokenInvalidError("Invalid token type")
+
+        # Check if user is blacklisted (for account deletion, etc.)
+        user_id = payload.get("user_id")
+        if user_id and self.is_user_blacklisted(user_id):
+            raise TokenBlacklistedError("User account has been deleted or suspended")
 
         return payload
 
@@ -573,6 +583,89 @@ class AuthService:
         """
         try:
             key = f"blacklisted_family:{family_id}"
+            return self.redis_client.exists(key) > 0
+        except redis.RedisError:
+            # If Redis is unavailable, fail open (allow the request)
+            return False
+
+    def invalidate_all_user_tokens(self, user_id: str) -> int:
+        """
+        Invalidate all tokens for a specific user.
+
+        This method is used during critical security events like account deletion,
+        password reset, or security breaches. It blacklists the user ID itself,
+        which is checked during token validation.
+
+        Args:
+            user_id: ID of the user whose tokens should be invalidated
+
+        Returns:
+            Number of token families invalidated
+
+        Example:
+            >>> auth_service.invalidate_all_user_tokens("user123")
+            5  # Invalidated 5 token families
+        """
+        try:
+            # Blacklist the user ID with a long TTL (30 days)
+            # This prevents any existing tokens from being used
+            user_key = f"blacklisted_user:{user_id}"
+            self.redis_client.setex(user_key, 30 * 24 * 60 * 60, "1")
+
+            # Also invalidate all token families for this user
+            invalidated_count = 0
+            cursor = 0
+            while True:
+                cursor, keys = self.redis_client.scan(
+                    cursor=cursor,
+                    match="token_family:*",
+                    count=100
+                )
+
+                for key in keys:
+                    value = self.redis_client.get(key)
+                    if value:
+                        # Value format: "family_id:user_id"
+                        parts = value.split(":")
+                        if len(parts) >= 2 and parts[1] == user_id:
+                            family_id = parts[0]
+                            # Blacklist this family
+                            family_key = f"blacklisted_family:{family_id}"
+                            self.redis_client.setex(family_key, 30 * 24 * 60 * 60, "1")
+                            # Delete the family key
+                            self.redis_client.delete(key)
+                            invalidated_count += 1
+
+                if cursor == 0:
+                    break
+
+            return invalidated_count
+
+        except redis.RedisError as e:
+            # If Redis is unavailable, log but don't fail
+            # In production, you might want to raise an exception here
+            print(f"Redis error during token invalidation: {e}")
+            return 0
+
+    def is_user_blacklisted(self, user_id: str) -> bool:
+        """
+        Check if all tokens for a user have been blacklisted.
+
+        This is checked during token validation to prevent use of tokens
+        after critical security events like account deletion.
+
+        Args:
+            user_id: User ID to check
+
+        Returns:
+            True if user is blacklisted, False otherwise
+
+        Example:
+            >>> if auth_service.is_user_blacklisted("user123"):
+            ...     raise TokenBlacklistedError("User tokens have been revoked")
+        """
+        try:
+            key = f"blacklisted_user:{user_id}"
             return self.redis_client.exists(key) > 0
         except redis.RedisError:
             # If Redis is unavailable, fail open (allow the request)

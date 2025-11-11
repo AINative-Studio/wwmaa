@@ -884,6 +884,171 @@ class ZeroDBClient:
         logger.info(f"Listed {object_count} objects")
         return result
 
+    def upload_object_from_bytes(
+        self,
+        key: str,
+        content: bytes,
+        content_type: str = "application/json",
+        metadata: Optional[Dict[str, str]] = None,
+        ttl: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Upload content from bytes to ZeroDB object storage
+
+        Args:
+            key: Object storage key (path)
+            content: File content as bytes
+            content_type: MIME type of the content
+            metadata: Optional metadata for the object
+            ttl: Time-to-live in seconds (for automatic expiry)
+
+        Returns:
+            Upload confirmation with object URL and metadata
+
+        Raises:
+            ZeroDBError: If upload fails
+        """
+        url = self._build_url("storage", "upload")
+
+        import io
+
+        # Create file-like object from bytes
+        file_obj = io.BytesIO(content)
+
+        # Prepare multipart form data
+        files = {
+            "file": (key.split("/")[-1], file_obj, content_type)
+        }
+
+        data = {
+            "path": key  # Include path to store in specific location
+        }
+
+        if metadata:
+            import json
+            data["metadata"] = json.dumps(metadata)
+
+        if ttl:
+            data["ttl"] = str(ttl)
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        logger.info(f"Uploading object to key '{key}' ({len(content)} bytes, ttl={ttl})")
+        response = self.session.post(
+            url,
+            files=files,
+            data=data,
+            headers=headers,
+            timeout=self.timeout * 3  # Longer timeout for uploads
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Object uploaded successfully to '{key}'")
+        return result
+
+    def generate_signed_url(
+        self,
+        key: str,
+        expiry_seconds: int = 3600,
+        method: str = "GET"
+    ) -> str:
+        """
+        Generate a signed URL for secure access to an object
+
+        Args:
+            key: Object storage key
+            expiry_seconds: How long the URL should be valid (in seconds)
+            method: HTTP method (GET, PUT, DELETE)
+
+        Returns:
+            Signed URL string
+
+        Raises:
+            ZeroDBError: If URL generation fails
+        """
+        url = self._build_url("storage", "signed-url")
+
+        payload = {
+            "key": key,
+            "expiry_seconds": expiry_seconds,
+            "method": method
+        }
+
+        logger.info(f"Generating signed URL for '{key}' (expiry={expiry_seconds}s)")
+        response = self.session.post(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        signed_url = result.get("signed_url") or result.get("url")
+
+        if not signed_url:
+            # Fallback: construct direct URL
+            signed_url = self._build_url("storage", "objects", key)
+            logger.warning(f"No signed URL returned, using direct URL: {signed_url}")
+
+        logger.info(f"Signed URL generated for '{key}'")
+        return signed_url
+
+    def get_object_metadata(self, key: str) -> Dict[str, Any]:
+        """
+        Get metadata for an object without downloading it
+
+        Args:
+            key: Object storage key
+
+        Returns:
+            Object metadata including size, content_type, created_at, etc.
+
+        Raises:
+            ZeroDBNotFoundError: If object doesn't exist
+            ZeroDBError: If metadata retrieval fails
+        """
+        url = self._build_url("storage", "metadata", key)
+
+        logger.info(f"Getting metadata for object '{key}'")
+        response = self.session.get(
+            url,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Metadata retrieved for '{key}'")
+        return result
+
+    def delete_object_by_key(self, key: str) -> Dict[str, Any]:
+        """
+        Delete an object by its storage key (path)
+
+        Args:
+            key: Object storage key (path)
+
+        Returns:
+            Deletion confirmation
+
+        Raises:
+            ZeroDBNotFoundError: If object doesn't exist
+            ZeroDBError: If deletion fails
+        """
+        url = self._build_url("storage", "objects", key)
+
+        logger.info(f"Deleting object at key '{key}'")
+        response = self.session.delete(
+            url,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Object at '{key}' deleted successfully")
+        return result
+
     def close(self):
         """Close the session and clean up resources"""
         if hasattr(self, 'session'):

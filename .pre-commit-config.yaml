@@ -1,0 +1,213 @@
+# Pre-commit Hooks Configuration for WWMAA
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  python: python3.11
+  node: "20"
+
+# Use default stages for most hooks
+default_stages: [commit]
+
+# Repository hooks
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevent large files from being committed
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Check for files that would conflict in case-insensitive filesystems
+      - id: check-case-conflict
+
+      # Check for merge conflicts
+      - id: check-merge-conflict
+
+      # Check JSON files for parseable syntax
+      - id: check-json
+
+      # Check YAML files for parseable syntax
+      - id: check-yaml
+        args: ['--unsafe']  # Allow custom YAML tags
+
+      # Check TOML files for parseable syntax
+      - id: check-toml
+
+      # Check for files that parse as valid Python
+      - id: check-ast
+
+      # Check for debugger imports and breakpoints
+      - id: debug-statements
+
+      # Detect private keys
+      - id: detect-private-key
+
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+        exclude: \.min\.(js|css)$
+
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Fix mixed line endings
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+      # Check for proper shebang format
+      - id: check-executables-have-shebangs
+
+      # Check for proper shebang on scripts
+      - id: check-shebang-scripts-are-executable
+
+  # Python - Black code formatter
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        name: Format Python code with Black
+        language_version: python3.11
+        args: ['--line-length=120']
+        exclude: ^(venv|\.venv|env|\.env|migrations)/
+
+  # Python - isort import sorter
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Sort Python imports with isort
+        args: ['--profile=black', '--line-length=120']
+        exclude: ^(venv|\.venv|env|\.env|migrations)/
+
+  # Python - Flake8 linter
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        name: Lint Python code with Flake8
+        args: ['--config=.flake8']
+        exclude: ^(venv|\.venv|env|\.env|migrations)/
+        additional_dependencies:
+          - flake8-docstrings
+          - flake8-bugbear
+          - flake8-comprehensions
+          - flake8-simplify
+
+  # Python - MyPy type checker
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        name: Type check Python code with MyPy
+        args: ['--config-file=mypy.ini', '--ignore-missing-imports']
+        exclude: ^(venv|\.venv|env|\.env|migrations|tests)/
+        additional_dependencies:
+          - types-redis
+          - types-requests
+          - types-python-dateutil
+          - types-pytz
+
+  # Python - Security checks with bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: Security check Python code with Bandit
+        args: ['-c', 'pyproject.toml', '-r', 'backend/']
+        exclude: ^(tests|venv|\.venv)/
+
+  # Python - Docstring coverage
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.5.0
+    hooks:
+      - id: interrogate
+        name: Check docstring coverage
+        args: ['--verbose', '--fail-under=60', '--ignore-init-method', '--ignore-init-module']
+        exclude: ^(tests|venv|\.venv|migrations)/
+        pass_filenames: false
+
+  # JavaScript/TypeScript - Prettier formatter
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: Format JS/TS/JSON/CSS with Prettier
+        files: \.(js|jsx|ts|tsx|json|css|scss|md)$
+        exclude: ^(node_modules|\.next|out|coverage)/
+        additional_dependencies:
+          - prettier@3.1.1
+          - prettier-plugin-tailwindcss@0.5.9
+
+  # JavaScript/TypeScript - ESLint
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.56.0
+    hooks:
+      - id: eslint
+        name: Lint JS/TS code with ESLint
+        files: \.(js|jsx|ts|tsx)$
+        exclude: ^(node_modules|\.next|out|coverage)/
+        args: ['--fix', '--max-warnings=0']
+        additional_dependencies:
+          - eslint@8.49.0
+          - eslint-config-next@13.5.1
+          - typescript@5.2.2
+
+  # Markdown linter
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        name: Lint Markdown files
+        args: ['--fix']
+        exclude: ^(node_modules|\.next|venv|\.venv)/
+
+  # Secrets detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets in code
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(package-lock\.json|\.secrets\.baseline)$
+
+  # Docker linter
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: Lint Dockerfiles
+        files: Dockerfile.*
+
+  # Shell script linter
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        name: Lint shell scripts
+
+  # Commit message linting
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+        name: Check commit message format
+        stages: [commit-msg]
+
+# CI configuration
+ci:
+  # Skip pre-commit.ci for these hooks (they require special setup)
+  skip:
+    - eslint
+    - prettier
+    - mypy
+    - interrogate
+    - hadolint-docker
+
+  # Auto-fix pull requests
+  autofix_commit_msg: 'style: auto-fix by pre-commit hooks'
+  autofix_prs: true
+  autoupdate_schedule: weekly
+  autoupdate_commit_msg: 'chore: update pre-commit hooks'

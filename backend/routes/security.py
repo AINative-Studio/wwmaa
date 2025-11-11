@@ -19,6 +19,7 @@ import logging
 from datetime import datetime
 from backend.config import get_settings
 from backend.observability import capture_message
+from backend.middleware.csrf import get_csrf_token
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -256,6 +257,45 @@ async def test_security_headers(request: Request):
                 "WARNING: HSTS preload is irreversible, test thoroughly first"
             ]
         }
+    }
+
+
+@router.get("/api/security/csrf-token")
+async def get_csrf_token_endpoint(request: Request):
+    """
+    Get CSRF token for single-page applications.
+
+    This endpoint allows SPAs to obtain a CSRF token before making
+    state-changing requests. The token is also available in the
+    csrf_token cookie set by the CSRF middleware.
+
+    Returns:
+        Dictionary containing the CSRF token
+
+    Example:
+        GET /api/security/csrf-token
+        Response: {"csrf_token": "abc123..."}
+
+    Usage in SPA:
+        1. Call this endpoint on app initialization
+        2. Store the token in application state
+        3. Include token in X-CSRF-Token header for POST/PUT/DELETE requests
+        4. Ensure csrf_token cookie is sent with requests (credentials: 'include')
+    """
+    token = get_csrf_token(request)
+
+    if not token:
+        # This shouldn't happen as middleware generates token for all requests
+        # but handle gracefully
+        logger.warning("CSRF token not found in request state")
+        raise HTTPException(
+            status_code=500,
+            detail="CSRF token not available"
+        )
+
+    return {
+        "csrf_token": token,
+        "message": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
     }
 
 

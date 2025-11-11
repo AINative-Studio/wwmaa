@@ -1,0 +1,81 @@
+[flake8]
+# Flake8 Configuration for WWMAA Backend
+
+# Maximum line length
+max-line-length = 120
+
+# Maximum complexity
+max-complexity = 15
+
+# Exclude directories
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .env,
+    .pytest_cache,
+    .mypy_cache,
+    build,
+    dist,
+    *.egg-info,
+    .tox,
+    node_modules,
+    migrations,
+    .next
+
+# Error codes to ignore
+ignore =
+    # E203: whitespace before ':' (conflicts with black)
+    E203,
+    # E501: line too long (handled by black)
+    E501,
+    # W503: line break before binary operator (conflicts with black)
+    W503,
+    # E402: module level import not at top of file
+    # E402,
+    # F401: imported but unused (let mypy handle this)
+    # F401,
+
+# Select specific error codes
+select =
+    E,
+    W,
+    F,
+    C,
+    N
+
+# Per-file ignores
+per-file-ignores =
+    __init__.py:F401,F403
+    conftest.py:F401,F403
+    tests/*:F401,F403,F811
+
+# Show source code for each error
+show-source = True
+
+# Show relevant PEP 8 text for each error
+show-pep8 = True
+
+# Count errors
+count = True
+
+# Print total number of errors
+statistics = True
+
+# Benchmark flake8 speed
+benchmark = False
+
+# Enable color output
+# color = always
+
+# Formatting
+format = default
+
+# Docstring conventions (PEP 257)
+docstring-convention = google
+
+# Import order checking
+import-order-style = google
+application-import-names = backend

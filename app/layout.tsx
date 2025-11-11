@@ -3,6 +3,8 @@ import { ReactNode } from "react";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { AuthProvider } from "@/lib/auth-context";
+import { CookieBanner } from "@/components/cookie-consent/cookie-banner";
+import { AnalyticsLoader } from "@/components/cookie-consent/analytics-loader";
 
 export const metadata = {
   metadataBase: new URL("https://wwmaa.ainative.studio"),
@@ -56,11 +58,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
         <AuthProvider>
+          <AnalyticsLoader />
           <div className="flex min-h-screen flex-col">
             <Nav />
             <main className="flex-1">{children}</main>
             <Footer />
           </div>
+          <CookieBanner />
         </AuthProvider>
       </body>
     </html>

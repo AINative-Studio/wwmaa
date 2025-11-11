@@ -1,0 +1,162 @@
+# Codecov Configuration for WWMAA
+# This file controls how Codecov processes and reports code coverage
+
+# Overall coverage configuration
+coverage:
+  # Precision of coverage percentages (number of decimal places)
+  precision: 2
+  # Rounding method: down, up, or nearest
+  round: nearest
+  # Range for coverage display (good/acceptable/poor thresholds)
+  range: "70...100"
+
+  # Coverage status checks
+  status:
+    # Project-level coverage (entire codebase)
+    project:
+      default:
+        # Target coverage percentage for the project
+        target: 80%
+        # Allow coverage to drop by this percentage without failing
+        threshold: 1%
+        # Base coverage to compare against
+        base: auto
+        # Only post status if coverage changes
+        if_ci_failed: error
+        # Only notify if coverage decreases
+        only_pulls: false
+
+      # Backend-specific coverage
+      backend:
+        target: 80%
+        threshold: 1%
+        flags:
+          - backend
+        paths:
+          - backend/
+
+      # Frontend-specific coverage
+      frontend:
+        target: 75%
+        threshold: 1%
+        flags:
+          - frontend
+        paths:
+          - app/
+          - components/
+          - lib/
+          - hooks/
+
+    # Patch coverage (code changed in the commit/PR)
+    patch:
+      default:
+        # Target coverage for new code
+        target: 70%
+        # Allow new code to have slightly lower coverage
+        threshold: 5%
+        # Base to compare against
+        base: auto
+        # Only post status if coverage changes
+        if_ci_failed: error
+        # Only check patches in pull requests
+        only_pulls: true
+
+      backend:
+        target: 75%
+        threshold: 5%
+        flags:
+          - backend
+
+      frontend:
+        target: 70%
+        threshold: 5%
+        flags:
+          - frontend
+
+    # Changes coverage (lines added/removed)
+    changes:
+      default:
+        # Only check if CI passed
+        if_ci_failed: error
+
+# Flags for organizing coverage reports
+flags:
+  backend:
+    paths:
+      - backend/
+    carryforward: true
+
+  frontend:
+    paths:
+      - app/
+      - components/
+      - lib/
+      - hooks/
+    carryforward: true
+
+  unittests:
+    carryforward: true
+
+  integration:
+    carryforward: true
+
+  e2e:
+    carryforward: true
+
+# Pull request comments configuration
+comment:
+  # Layout of the comment
+  layout: "header, diff, files, footer"
+  # Behavior: default, once, new, or false
+  behavior: default
+  # Require changes to post comment
+  require_changes: true
+  # Require base report to exist
+  require_base: false
+  # Require head report to exist
+  require_head: true
+  # Show files with coverage changes
+  show_carryforward_flags: true
+  # After N builds, post comment
+  after_n_builds: 2
+
+# Ignore paths in coverage calculations
+ignore:
+  - "backend/tests/"
+  - "**/__pycache__/"
+  - "**/test_*.py"
+  - "**/conftest.py"
+  - "**/*.md"
+  - "docs/"
+  - "scripts/"
+  - "**/__init__.py"
+  - "**/venv/"
+  - "**/.venv/"
+  - "**/node_modules/"
+  - "**/.next/"
+  - "out/"
+  - "public/"
+
+# File-specific coverage requirements (can be used to set lower thresholds for specific files)
+coverage_precision:
+  - 2
+
+# GitHub Checks integration
+github_checks:
+  annotations: true
+
+# Notifications configuration
+slack:
+  # Notify only on coverage drops
+  notify_on_coverage_drop: true
+
+# Codecov AI/Bot
+codecov:
+  # Require CI to pass before processing coverage
+  require_ci_to_pass: true
+  # Notify admins about configuration errors
+  notify:
+    # After n builds
+    after_n_builds: 2
+    # Wait time
+    wait_for_ci: true

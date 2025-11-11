@@ -27,12 +27,15 @@ from backend.routes import search
 from backend.routes import newsletter
 from backend.routes import blog
 from backend.routes import security
+from backend.routes import privacy
+from backend.routes import health
 from backend.routes.admin import search_analytics
 from backend.routes.admin import indexing
 from backend.routes.admin import training_analytics
 from backend.routes.webhooks import beehiiv
 from backend.middleware.metrics_middleware import MetricsMiddleware, get_request_id
 from backend.middleware.security_headers import SecurityHeadersMiddleware
+from backend.middleware.csrf import CSRFMiddleware
 from backend.observability.metrics import (
     get_metrics_handler,
     set_app_info,
@@ -99,6 +102,13 @@ app.add_middleware(
 if settings.SECURITY_HEADERS_ENABLED:
     app.add_middleware(SecurityHeadersMiddleware)
     logger.info("Security headers middleware enabled")
+
+# Add CSRF protection middleware (US-071)
+# This must be added AFTER CORS and security headers
+# CSRF protection uses double-submit cookie pattern with SameSite=Strict
+if getattr(settings, 'CSRF_PROTECTION_ENABLED', True):
+    app.add_middleware(CSRFMiddleware)
+    logger.info("CSRF protection middleware enabled")
 
 # Add metrics middleware for request ID tracking and custom metrics
 app.add_middleware(MetricsMiddleware)
@@ -214,6 +224,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 # Register routers
+app.include_router(health.router)  # Health check endpoints (must be first for Railway)
 app.include_router(auth.router)
 app.include_router(applications.router)
 app.include_router(application_submission.router)
@@ -227,6 +238,7 @@ app.include_router(search.router)
 app.include_router(newsletter.router)
 app.include_router(blog.router)
 app.include_router(security.router)
+app.include_router(privacy.router)
 app.include_router(beehiiv.router)
 app.include_router(search_analytics.router)
 app.include_router(indexing.router)
