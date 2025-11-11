@@ -508,6 +508,449 @@ class TestAttendeeService:
         assert stats["waitlist"] == 0
 
 
+    # ========================================================================
+    # EDGE CASES AND ERROR HANDLING TESTS
+    # ========================================================================
+
+    def test_get_attendees_with_status_all(self, attendee_service, sample_event_id, sample_attendees):
+        """Test getting attendees with status='all' (no status filter)"""
+        attendee_service.db.query_documents = Mock(return_value={
+            "documents": sample_attendees
+        })
+
+        result = attendee_service.get_attendees(
+            event_id=sample_event_id,
+            status="all"
+        )
+
+        assert result["total"] == 3
+        # Should not filter by status
+        call_args = attendee_service.db.query_documents.call_args
+        filters = call_args[1]["filters"]
+        assert "status" not in filters
+
+    def test_get_attendees_no_show_filter(self, attendee_service, sample_event_id, sample_attendees):
+        """Test filtering attendees by no-show status"""
+        no_show_attendees = [
+            {
+                "id": str(uuid4()),
+                "event_id": str(sample_event_id),
+                "user_name": "No Show User",
+                "user_email": "noshow@example.com",
+                "status": RSVPStatus.CONFIRMED.value,
+                "checked_in_at": None,
+                "created_at": "2024-01-15T10:00:00Z"
+            }
+        ]
+
+        attendee_service.db.query_documents = Mock(return_value={
+            "documents": no_show_attendees
+        })
+
+        result = attendee_service.get_attendees(
+            event_id=sample_event_id,
+            status="no-show"
+        )
+
+        # Verify correct filters applied
+        call_args = attendee_service.db.query_documents.call_args
+        filters = call_args[1]["filters"]
+        assert filters["status"] == RSVPStatus.CONFIRMED.value
+        assert filters["checked_in_at"] is None
+
+    def test_get_attendees_search_no_results(self, attendee_service, sample_event_id, sample_attendees):
+        """Test searching attendees with no matches"""
+        attendee_service.db.query_documents = Mock(return_value={
+            "documents": sample_attendees
+        })
+
+        result = attendee_service.get_attendees(
+            event_id=sample_event_id,
+            search="nonexistent"
+        )
+
+        assert result["total"] == 0
+        assert len(result["attendees"]) == 0
+
+    def test_get_attendees_search_empty_results(self, attendee_service, sample_event_id):
+        """Test search when query returns empty results"""
+        attendee_service.db.query_documents = Mock(return_value={
+            "documents": []
+        })
+
+        result = attendee_service.get_attendees(
+            event_id=sample_event_id,
+            search="alice"
+        )
+
+        assert result["total"] == 0
+        assert result["attendees"] == []
+
+    def test_get_attendees_generic_exception(self, attendee_service, sample_event_id):
+        """Test handling of generic exceptions in get_attendees"""
+        attendee_service.db.query_documents = Mock(side_effect=ValueError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="Unexpected error"):
+            attendee_service.get_attendees(event_id=sample_event_id)
+
+    def test_export_csv_with_invalid_dates(self, attendee_service, sample_event_id):
+        """Test CSV export with invalid date formats"""
+        attendees_with_bad_dates = [
+            {
+                "id": str(uuid4()),
+                "user_name": "Test User",
+                "user_email": "test@example.com",
+                "user_phone": "555-1234",
+                "status": RSVPStatus.CONFIRMED.value,
+                "created_at": "invalid-date",
+                "checked_in_at": "also-invalid",
+                "guests_count": 1,
+                "notes": "Test"
+            }
+        ]
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": attendees_with_bad_dates,
+            "total": 1
+        })
+
+        csv_content = attendee_service.export_attendees_csv(event_id=sample_event_id)
+
+        # Should still generate CSV with raw date strings
+        assert "Test User" in csv_content
+        assert "test@example.com" in csv_content
+        assert "invalid-date" in csv_content
+
+    def test_export_csv_with_special_characters(self, attendee_service, sample_event_id):
+        """Test CSV export with special characters in data"""
+        attendees_with_special_chars = [
+            {
+                "id": str(uuid4()),
+                "user_name": "O'Brien, John",
+                "user_email": "john@example.com",
+                "user_phone": "555-1234",
+                "status": RSVPStatus.CONFIRMED.value,
+                "created_at": "2024-01-15T10:00:00Z",
+                "checked_in_at": None,
+                "guests_count": 0,
+                "notes": "Has dietary restrictions: \"vegetarian\", needs chair"
+            }
+        ]
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": attendees_with_special_chars,
+            "total": 1
+        })
+
+        csv_content = attendee_service.export_attendees_csv(event_id=sample_event_id)
+
+        # CSV should properly escape special characters
+        assert "O'Brien" in csv_content
+        assert "vegetarian" in csv_content
+
+    def test_export_csv_generic_exception(self, attendee_service, sample_event_id):
+        """Test CSV export with generic exception"""
+        attendee_service.get_attendees = Mock(side_effect=ValueError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="CSV export failed"):
+            attendee_service.export_attendees_csv(event_id=sample_event_id)
+
+    def test_export_csv_writer_exception(self, attendee_service, sample_event_id):
+        """Test CSV export with exception during CSV writing"""
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": [{"user_name": "Test"}],
+            "total": 1
+        })
+
+        # Simulate an error during CSV writing by patching StringIO
+        with patch("backend.services.attendee_service.io.StringIO") as mock_io:
+            mock_io.return_value.getvalue.side_effect = RuntimeError("CSV write failed")
+
+            with pytest.raises(AttendeeServiceError, match="CSV export failed"):
+                attendee_service.export_attendees_csv(event_id=sample_event_id)
+
+    def test_send_bulk_email_missing_email(self, attendee_service, sample_event_id):
+        """Test bulk email with attendees missing email addresses"""
+        attendees_without_email = [
+            {
+                "id": str(uuid4()),
+                "user_name": "No Email User",
+                "user_email": None,  # Missing email
+                "status": RSVPStatus.CONFIRMED.value
+            },
+            {
+                "id": str(uuid4()),
+                "user_name": "Valid User",
+                "user_email": "valid@example.com",
+                "status": RSVPStatus.CONFIRMED.value
+            }
+        ]
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": attendees_without_email,
+            "total": 2
+        })
+
+        attendee_service.email_service._send_email = Mock(return_value={"MessageID": "test-123"})
+
+        result = attendee_service.send_bulk_email(
+            event_id=sample_event_id,
+            subject="Test",
+            message="Test message"
+        )
+
+        assert result["sent"] == 1
+        assert result["failed"] == 1
+        assert len(result["errors"]) == 1
+        assert "No email for attendee" in result["errors"][0]
+
+    def test_send_bulk_email_all_emails_fail(self, attendee_service, sample_event_id, sample_attendees):
+        """Test bulk email when all email sends fail"""
+        from backend.services.email_service import EmailSendError
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": sample_attendees,
+            "total": len(sample_attendees)
+        })
+
+        attendee_service.email_service._send_email = Mock(
+            side_effect=EmailSendError("Email service unavailable")
+        )
+
+        result = attendee_service.send_bulk_email(
+            event_id=sample_event_id,
+            subject="Test",
+            message="Test message"
+        )
+
+        assert result["sent"] == 0
+        assert result["failed"] == 3
+        assert len(result["errors"]) > 0
+
+    def test_send_bulk_email_generic_exception(self, attendee_service, sample_event_id, sample_attendees):
+        """Test bulk email with generic exception during send"""
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": sample_attendees,
+            "total": len(sample_attendees)
+        })
+
+        # Generic exception (not EmailSendError)
+        attendee_service.email_service._send_email = Mock(
+            side_effect=RuntimeError("Unexpected error")
+        )
+
+        result = attendee_service.send_bulk_email(
+            event_id=sample_event_id,
+            subject="Test",
+            message="Test message"
+        )
+
+        assert result["sent"] == 0
+        assert result["failed"] == 3
+        assert any("Unexpected error" in err for err in result["errors"])
+
+    def test_send_bulk_email_error_limit(self, attendee_service, sample_event_id):
+        """Test that bulk email limits errors returned to 10"""
+        from backend.services.email_service import EmailSendError
+
+        # Create 15 attendees to test error limiting
+        many_attendees = [
+            {
+                "id": str(uuid4()),
+                "user_name": f"User {i}",
+                "user_email": f"user{i}@example.com",
+                "status": RSVPStatus.CONFIRMED.value
+            }
+            for i in range(15)
+        ]
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": many_attendees,
+            "total": 15
+        })
+
+        attendee_service.email_service._send_email = Mock(
+            side_effect=EmailSendError("Failed")
+        )
+
+        result = attendee_service.send_bulk_email(
+            event_id=sample_event_id,
+            subject="Test",
+            message="Test"
+        )
+
+        assert result["failed"] == 15
+        assert len(result["errors"]) == 10  # Limited to 10
+
+    def test_send_bulk_email_get_attendees_error(self, attendee_service, sample_event_id):
+        """Test bulk email when get_attendees raises error"""
+        attendee_service.get_attendees = Mock(
+            side_effect=AttendeeServiceError("Failed to fetch attendees")
+        )
+
+        with pytest.raises(AttendeeServiceError, match="Failed to fetch attendees"):
+            attendee_service.send_bulk_email(
+                event_id=sample_event_id,
+                subject="Test",
+                message="Test"
+            )
+
+    def test_send_bulk_email_unexpected_exception(self, attendee_service, sample_event_id):
+        """Test bulk email with unexpected exception not from get_attendees or email service"""
+        # Simulate a case where get_attendees succeeds but something else fails
+        attendee_service.get_attendees = Mock(side_effect=KeyError("Unexpected key error"))
+
+        with pytest.raises(AttendeeServiceError, match="Bulk email failed"):
+            attendee_service.send_bulk_email(
+                event_id=sample_event_id,
+                subject="Test",
+                message="Test"
+            )
+
+    def test_check_in_attendee_generic_exception(self, attendee_service):
+        """Test check-in with generic exception"""
+        rsvp_id = uuid4()
+        attendee_service.db.update_document = Mock(side_effect=ValueError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="Unexpected error"):
+            attendee_service.check_in_attendee(rsvp_id=rsvp_id)
+
+    def test_mark_no_show_db_error(self, attendee_service):
+        """Test mark no-show with database error"""
+        from backend.services.zerodb_service import ZeroDBError
+
+        rsvp_id = uuid4()
+        attendee_service.db.update_document = Mock(side_effect=ZeroDBError("Update failed"))
+
+        with pytest.raises(AttendeeServiceError, match="No-show marking failed"):
+            attendee_service.mark_no_show(rsvp_id=rsvp_id)
+
+    def test_mark_no_show_generic_exception(self, attendee_service):
+        """Test mark no-show with generic exception"""
+        rsvp_id = uuid4()
+        attendee_service.db.update_document = Mock(side_effect=RuntimeError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="Unexpected error"):
+            attendee_service.mark_no_show(rsvp_id=rsvp_id)
+
+    def test_promote_from_waitlist_partial_failure(self, attendee_service, sample_event_id):
+        """Test promoting waitlist with some failures"""
+        waitlist_attendees = [
+            {
+                "id": str(uuid4()),
+                "user_name": f"User {i}",
+                "user_email": f"user{i}@example.com",
+                "status": RSVPStatus.WAITLIST.value,
+                "created_at": f"2024-01-{15+i}T10:00:00Z"
+            }
+            for i in range(3)
+        ]
+
+        attendee_service.db.query_documents = Mock(return_value={
+            "documents": waitlist_attendees
+        })
+
+        # First update succeeds, second fails, third succeeds
+        attendee_service.db.update_document = Mock(
+            side_effect=[
+                {"status": RSVPStatus.CONFIRMED.value},
+                Exception("Update failed"),
+                {"status": RSVPStatus.CONFIRMED.value}
+            ]
+        )
+
+        result = attendee_service.promote_from_waitlist(
+            event_id=sample_event_id,
+            count=3
+        )
+
+        # Should promote 2 out of 3
+        assert result["promoted"] == 2
+        assert len(result["attendees"]) == 2
+
+    def test_promote_from_waitlist_db_error(self, attendee_service, sample_event_id):
+        """Test promote waitlist with database error on query"""
+        from backend.services.zerodb_service import ZeroDBError
+
+        attendee_service.db.query_documents = Mock(side_effect=ZeroDBError("Query failed"))
+
+        with pytest.raises(AttendeeServiceError, match="Waitlist promotion failed"):
+            attendee_service.promote_from_waitlist(event_id=sample_event_id, count=1)
+
+    def test_promote_from_waitlist_generic_exception(self, attendee_service, sample_event_id):
+        """Test promote waitlist with generic exception"""
+        attendee_service.db.query_documents = Mock(side_effect=ValueError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="Unexpected error"):
+            attendee_service.promote_from_waitlist(event_id=sample_event_id, count=1)
+
+    def test_get_attendee_stats_with_all_statuses(self, attendee_service, sample_event_id):
+        """Test statistics with all possible statuses"""
+        diverse_attendees = [
+            {
+                "id": str(uuid4()),
+                "status": RSVPStatus.CONFIRMED.value,
+                "checked_in_at": "2024-01-20T18:00:00Z",
+                "no_show": False
+            },
+            {
+                "id": str(uuid4()),
+                "status": RSVPStatus.WAITLIST.value,
+                "checked_in_at": None,
+                "no_show": False
+            },
+            {
+                "id": str(uuid4()),
+                "status": RSVPStatus.CANCELED.value,
+                "checked_in_at": None,
+                "no_show": False
+            },
+            {
+                "id": str(uuid4()),
+                "status": RSVPStatus.CONFIRMED.value,
+                "checked_in_at": None,
+                "no_show": True
+            },
+            {
+                "id": str(uuid4()),
+                "status": "pending",  # Pending status
+                "checked_in_at": None,
+                "no_show": False
+            }
+        ]
+
+        attendee_service.get_attendees = Mock(return_value={
+            "attendees": diverse_attendees,
+            "total": 5
+        })
+
+        stats = attendee_service.get_attendee_stats(event_id=sample_event_id)
+
+        assert stats["total"] == 5
+        assert stats["confirmed"] == 2
+        assert stats["waitlist"] == 1
+        assert stats["canceled"] == 1
+        assert stats["checked_in"] == 1
+        assert stats["no_show"] == 1
+        assert stats["pending"] == 1
+
+    def test_get_attendee_stats_error_propagation(self, attendee_service, sample_event_id):
+        """Test that stats propagates AttendeeServiceError"""
+        attendee_service.get_attendees = Mock(
+            side_effect=AttendeeServiceError("Failed to fetch")
+        )
+
+        with pytest.raises(AttendeeServiceError, match="Failed to fetch"):
+            attendee_service.get_attendee_stats(event_id=sample_event_id)
+
+    def test_get_attendee_stats_generic_exception(self, attendee_service, sample_event_id):
+        """Test stats with generic exception"""
+        attendee_service.get_attendees = Mock(side_effect=ValueError("Unexpected error"))
+
+        with pytest.raises(AttendeeServiceError, match="Stats query failed"):
+            attendee_service.get_attendee_stats(event_id=sample_event_id)
+
+
 class TestAttendeeServiceSingleton:
     """Test singleton pattern"""
 

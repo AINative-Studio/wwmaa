@@ -652,3 +652,403 @@ def test_get_event_service_singleton():
 
     # Assert
     assert service1 is service2
+
+
+# ============================================================================
+# ADDITIONAL ERROR HANDLING AND EDGE CASE TESTS
+# ============================================================================
+
+def test_create_event_generic_exception(event_service):
+    """Test create_event handles generic exceptions"""
+    # Arrange
+    now = datetime.utcnow()
+    user_id = uuid4()
+    event_data = {
+        "title": "Test Event",
+        "start_date": now.isoformat(),
+        "end_date": (now + timedelta(hours=2)).isoformat(),
+        "event_type": EventType.SEMINAR.value
+    }
+
+    # Simulate a generic database error
+    event_service.db.create_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.create_event(event_data, user_id)
+
+    assert "Failed to create event" in str(exc_info.value)
+
+
+def test_get_event_generic_exception(event_service):
+    """Test get_event handles generic exceptions"""
+    # Arrange
+    event_id = str(uuid4())
+
+    # Simulate a generic database error
+    event_service.db.get_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.get_event(event_id)
+
+    assert "Failed to fetch event" in str(exc_info.value)
+
+
+def test_list_events_generic_exception(event_service):
+    """Test list_events handles generic exceptions"""
+    # Arrange
+    # Simulate a generic database error
+    event_service.db.query_documents.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.list_events()
+
+    assert "Failed to list events" in str(exc_info.value)
+
+
+def test_update_event_validates_capacity_from_update_data(event_service, sample_event_response):
+    """Test update_event validates capacity in update data"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    update_data = {"capacity": 0}  # Invalid capacity
+
+    event_service.db.get_document.return_value = sample_event_response
+
+    # Act & Assert
+    with pytest.raises(ZeroDBValidationError) as exc_info:
+        event_service.update_event(event_id, update_data, user_id)
+
+    assert "capacity must be greater than 0" in str(exc_info.value)
+
+
+def test_update_event_validates_negative_capacity(event_service, sample_event_response):
+    """Test update_event validates negative capacity"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    update_data = {"capacity": -10}  # Negative capacity
+
+    event_service.db.get_document.return_value = sample_event_response
+
+    # Act & Assert
+    with pytest.raises(ZeroDBValidationError) as exc_info:
+        event_service.update_event(event_id, update_data, user_id)
+
+    assert "capacity must be greater than 0" in str(exc_info.value)
+
+
+def test_update_event_validates_price_from_update_data(event_service, sample_event_response):
+    """Test update_event validates negative price in update data"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    update_data = {"price": -5.00}  # Invalid price
+
+    event_service.db.get_document.return_value = sample_event_response
+
+    # Act & Assert
+    with pytest.raises(ZeroDBValidationError) as exc_info:
+        event_service.update_event(event_id, update_data, user_id)
+
+    assert "price must be 0 or greater" in str(exc_info.value)
+
+
+def test_update_event_generic_exception(event_service, sample_event_response):
+    """Test update_event handles generic exceptions"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    update_data = {"title": "Updated Title"}
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.update_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.update_event(event_id, update_data, user_id)
+
+    assert "Failed to update event" in str(exc_info.value)
+
+
+def test_delete_event_generic_exception(event_service, sample_event_response):
+    """Test delete_event handles generic exceptions during soft delete"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.update_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.delete_event(event_id, user_id, hard_delete=False)
+
+    assert "Failed to delete event" in str(exc_info.value)
+
+
+def test_delete_event_hard_delete_exception(event_service, sample_event_response):
+    """Test delete_event handles exceptions during hard delete"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.delete_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.delete_event(event_id, user_id, hard_delete=True)
+
+    assert "Failed to delete event" in str(exc_info.value)
+
+
+def test_restore_event_generic_exception(event_service, sample_event_response):
+    """Test restore_event handles generic exceptions"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    deleted_event = {**sample_event_response, 'is_deleted': True}
+
+    event_service.db.get_document.return_value = deleted_event
+    event_service.db.update_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.restore_event(event_id, user_id)
+
+    assert "Failed to restore event" in str(exc_info.value)
+
+
+def test_duplicate_event_generic_exception(event_service, sample_event_response):
+    """Test duplicate_event handles generic exceptions"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.create_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.duplicate_event(event_id, user_id)
+
+    assert "Failed to duplicate event" in str(exc_info.value)
+
+
+def test_toggle_publish_generic_exception(event_service, sample_event_response):
+    """Test toggle_publish handles generic exceptions"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.update_document.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.toggle_publish(event_id, user_id)
+
+    assert "Failed to toggle publish status" in str(exc_info.value)
+
+
+def test_upload_event_image_file_not_found(event_service):
+    """Test upload_event_image handles FileNotFoundError"""
+    # Arrange
+    file_path = "/nonexistent/path/image.jpg"
+    event_id = str(uuid4())
+
+    # Simulate file not found
+    event_service.db.upload_object.side_effect = FileNotFoundError("File not found")
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError):
+        event_service.upload_event_image(file_path, event_id)
+
+
+def test_upload_event_image_generic_exception(event_service):
+    """Test upload_event_image handles generic exceptions"""
+    # Arrange
+    file_path = "/tmp/test_image.jpg"
+    event_id = str(uuid4())
+
+    # Simulate a generic error
+    event_service.db.upload_object.side_effect = Exception("Upload failed")
+
+    # Act & Assert
+    with patch('os.path.basename', return_value="test_image.jpg"):
+        with pytest.raises(ZeroDBError) as exc_info:
+            event_service.upload_event_image(file_path, event_id)
+
+    assert "Failed to upload event image" in str(exc_info.value)
+
+
+def test_upload_event_image_with_object_url_fallback(event_service):
+    """Test upload_event_image uses object_url if url is not present"""
+    # Arrange
+    file_path = "/tmp/test_image.jpg"
+    event_id = str(uuid4())
+    expected_url = "https://storage.zerodb.io/events/test.jpg"
+
+    # Return object_url instead of url
+    event_service.db.upload_object.return_value = {"object_url": expected_url}
+
+    # Act
+    with patch('os.path.basename', return_value="test_image.jpg"):
+        result = event_service.upload_event_image(file_path, event_id)
+
+    # Assert
+    assert result == expected_url
+
+
+def test_get_deleted_events_generic_exception(event_service):
+    """Test get_deleted_events handles generic exceptions"""
+    # Arrange
+    # Simulate a generic database error
+    event_service.db.query_documents.side_effect = Exception("Database connection failed")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBError) as exc_info:
+        event_service.get_deleted_events()
+
+    assert "Failed to fetch deleted events" in str(exc_info.value)
+
+
+def test_create_event_with_datetime_objects(event_service, sample_event_response):
+    """Test create_event handles datetime objects (not just strings)"""
+    # Arrange
+    now = datetime.utcnow()
+    user_id = uuid4()
+    event_data = {
+        "title": "Test Event",
+        "start_date": now,  # datetime object, not string
+        "end_date": now + timedelta(hours=2),  # datetime object, not string
+        "event_type": EventType.SEMINAR.value
+    }
+
+    event_service.db.create_document.return_value = sample_event_response
+
+    # Act
+    result = event_service.create_event(event_data, user_id)
+
+    # Assert
+    assert result == sample_event_response
+    event_service.db.create_document.assert_called_once()
+
+
+def test_update_event_with_datetime_objects(event_service, sample_event_response):
+    """Test update_event handles datetime objects (not just strings)"""
+    # Arrange
+    event_id = sample_event_response['id']
+    user_id = uuid4()
+    now = datetime.utcnow()
+    update_data = {
+        "start_date": now,  # datetime object, not string
+        "end_date": now + timedelta(hours=2)  # datetime object, not string
+    }
+
+    event_service.db.get_document.return_value = sample_event_response
+    event_service.db.update_document.return_value = {**sample_event_response, **update_data}
+
+    # Act
+    result = event_service.update_event(event_id, update_data, user_id)
+
+    # Assert
+    event_service.db.update_document.assert_called_once()
+
+
+def test_upload_event_image_with_custom_object_name(event_service):
+    """Test upload_event_image with custom object name"""
+    # Arrange
+    file_path = "/tmp/test_image.jpg"
+    custom_name = "custom/path/image.jpg"
+    expected_url = "https://storage.zerodb.io/custom/path/image.jpg"
+
+    event_service.db.upload_object.return_value = {"url": expected_url}
+
+    # Act
+    result = event_service.upload_event_image(file_path, object_name=custom_name)
+
+    # Assert
+    assert result == expected_url
+    call_args = event_service.db.upload_object.call_args
+    assert call_args[1]['object_name'] == custom_name
+
+
+def test_create_event_with_negative_capacity(event_service):
+    """Test create_event validates negative capacity"""
+    # Arrange
+    now = datetime.utcnow()
+    user_id = uuid4()
+    invalid_data = {
+        "title": "Test Event",
+        "start_date": now.isoformat(),
+        "end_date": (now + timedelta(hours=2)).isoformat(),
+        "event_type": EventType.SEMINAR.value,
+        "capacity": -5  # Negative capacity
+    }
+
+    # Act & Assert
+    with pytest.raises(ZeroDBValidationError) as exc_info:
+        event_service.create_event(invalid_data, user_id)
+
+    assert "capacity must be greater than 0" in str(exc_info.value)
+
+
+def test_list_events_with_custom_sort(event_service):
+    """Test list_events with custom sorting options"""
+    # Arrange
+    query_result = {"documents": [], "total": 0}
+    event_service.db.query_documents.return_value = query_result
+
+    # Act
+    result = event_service.list_events(sort_by="created_at", sort_order="desc")
+
+    # Assert
+    call_args = event_service.db.query_documents.call_args
+    assert call_args[1]['sort'] == {"created_at": "desc"}
+
+
+def test_duplicate_event_not_found(event_service):
+    """Test duplicate_event with non-existent event"""
+    # Arrange
+    event_id = str(uuid4())
+    user_id = uuid4()
+
+    event_service.db.get_document.side_effect = ZeroDBNotFoundError(f"Event not found: {event_id}")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBNotFoundError):
+        event_service.duplicate_event(event_id, user_id)
+
+
+def test_delete_event_not_found(event_service):
+    """Test delete_event with non-existent event raises ZeroDBNotFoundError"""
+    # Arrange
+    event_id = str(uuid4())
+    user_id = uuid4()
+
+    event_service.db.get_document.side_effect = ZeroDBNotFoundError(f"Event not found: {event_id}")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBNotFoundError) as exc_info:
+        event_service.delete_event(event_id, user_id)
+
+    assert event_id in str(exc_info.value)
+
+
+def test_toggle_publish_not_found(event_service):
+    """Test toggle_publish with non-existent event raises ZeroDBNotFoundError"""
+    # Arrange
+    event_id = str(uuid4())
+    user_id = uuid4()
+
+    event_service.db.get_document.side_effect = ZeroDBNotFoundError(f"Event not found: {event_id}")
+
+    # Act & Assert
+    with pytest.raises(ZeroDBNotFoundError) as exc_info:
+        event_service.toggle_publish(event_id, user_id)
+
+    assert event_id in str(exc_info.value)
