@@ -5,6 +5,7 @@ Tests all blog API endpoints for proper functionality,
 error handling, and security.
 
 Endpoints Tested:
+- GET /api/blog
 - GET /api/blog/posts
 - GET /api/blog/posts/{slug}
 - GET /api/blog/categories
@@ -64,6 +65,133 @@ def sample_articles():
             'seo_metadata': {}
         }
     ]
+
+
+# ============================================================================
+# SIMPLE BLOG ENDPOINT TESTS
+# ============================================================================
+
+class TestGetBlogArticles:
+    """Test GET /api/blog endpoint (simple frontend endpoint)"""
+
+    @patch('backend.routes.blog.get_zerodb_client')
+    def test_get_articles_from_database(self, mock_zerodb, client, sample_articles):
+        """Test retrieval of blog articles from database"""
+        mock_service = Mock()
+        mock_service.query_documents.return_value = sample_articles
+        mock_zerodb.return_value = mock_service
+
+        response = client.get('/api/blog')
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return articles from database
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+        # Verify structure matches frontend Article interface
+        article = data[0]
+        assert 'id' in article
+        assert 'title' in article
+        assert 'excerpt' in article
+        assert 'url' in article
+        assert 'published_at' in article
+
+        # Verify correct data
+        assert article['title'] == 'Getting Started with Karate'
+        assert article['excerpt'] == 'Learn the basics of karate'
+
+        # Verify ZeroDB was queried correctly
+        mock_service.query_documents.assert_called_once_with(
+            collection='articles',
+            filters={'status': ArticleStatus.PUBLISHED},
+            limit=50,
+            sort_by='published_at',
+            sort_order='desc'
+        )
+
+    @patch('backend.routes.blog.get_zerodb_client')
+    def test_get_articles_fallback_to_sample_data(self, mock_zerodb, client):
+        """Test fallback to sample data when database is empty"""
+        mock_service = Mock()
+        mock_service.query_documents.return_value = []
+        mock_zerodb.return_value = mock_service
+
+        response = client.get('/api/blog')
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return sample articles as fallback
+        assert isinstance(data, list)
+        assert len(data) == 5
+
+        # Verify sample data structure
+        article = data[0]
+        assert article['id'] == 'art_001'
+        assert 'Five Tenets of Taekwondo' in article['title']
+
+    @patch('backend.routes.blog.get_zerodb_client')
+    def test_get_articles_handles_database_error(self, mock_zerodb, client):
+        """Test graceful error handling when database fails"""
+        mock_service = Mock()
+        mock_service.query_documents.side_effect = Exception('Database error')
+        mock_zerodb.return_value = mock_service
+
+        response = client.get('/api/blog')
+
+        # Should return empty array instead of error (graceful degradation)
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+    def test_get_articles_success(self, client):
+        """Test successful retrieval of blog articles (integration test)"""
+        response = client.get('/api/blog')
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return a list
+        assert isinstance(data, list)
+
+        if len(data) > 0:
+            # Verify structure of first article
+            article = data[0]
+            assert 'id' in article
+            assert 'title' in article
+            assert 'excerpt' in article
+            assert 'url' in article
+            assert 'published_at' in article
+
+            # Verify data types
+            assert isinstance(article['id'], str)
+            assert isinstance(article['title'], str)
+            assert isinstance(article['excerpt'], str)
+            assert isinstance(article['url'], str)
+            assert isinstance(article['published_at'], str)
+
+    def test_get_articles_content_quality(self, client):
+        """Test that articles have quality content"""
+        response = client.get('/api/blog')
+
+        assert response.status_code == 200
+        data = response.json()
+
+        if len(data) > 0:
+            for article in data:
+                # Titles should be descriptive
+                assert len(article['title']) > 10
+                assert len(article['title']) < 500
+
+                # URLs should be valid format
+                assert article['url'].startswith('http')
+
+                # Published dates should be in ISO format
+                if article['published_at']:
+                    assert 'T' in article['published_at']
 
 
 # ============================================================================

@@ -1,31 +1,31 @@
 """
 Blog API Routes for WWMAA Backend
 
-Provides public endpoints for accessing blog posts synced from BeeHiiv.
+Provides public endpoints for accessing blog posts from Strapi CMS.
+
+NOTE: This system uses Strapi CMS for blog content management.
+Articles are fetched directly from Strapi API with caching support.
 
 Endpoints:
+- GET /api/blog: Simple list of articles (frontend homepage)
 - GET /api/blog/posts: List all published posts (paginated)
 - GET /api/blog/posts/{slug}: Get single post by slug
 - GET /api/blog/categories: List all categories
 - GET /api/blog/tags: List all tags
-- GET /api/blog/posts/related/{post_id}: Get related posts
 
 Features:
 - Pagination and filtering
-- Search by title/content
-- Category and tag filtering
-- View count tracking
-- Related posts by category/tags
+- Category filtering
+- Redis caching (5-minute TTL)
+- Automatic fallback to sample data if Strapi is unavailable
+- Graceful error handling
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
-from uuid import UUID
-from datetime import datetime
 
-from backend.services.zerodb_service import get_zerodb_client
-from backend.models.schemas import Article, ArticleStatus
+from backend.services.strapi_service import get_strapi_service, StrapiError
 
 
 # Configure logging
@@ -38,79 +38,185 @@ router = APIRouter(
 )
 
 
+@router.get("")
+async def get_blog_articles(
+    limit: int = Query(10, ge=1, le=100, description="Number of articles to fetch"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    category: Optional[str] = Query(None, description="Filter by category")
+):
+    """
+    Get blog articles (simple endpoint for frontend)
+
+    Returns a simple array of blog articles matching the frontend Article interface.
+    Fetches articles from Strapi CMS with Redis caching (5-minute TTL).
+
+    Args:
+        limit: Maximum number of articles to return (default: 10, max: 100)
+        offset: Pagination offset (default: 0)
+        category: Filter by category (optional)
+
+    Returns:
+        List of article objects with id, title, url, excerpt, published_at, author, image_url, and category
+    """
+    try:
+        logger.info(f"Fetching blog articles: limit={limit}, offset={offset}, category={category}")
+
+        strapi = get_strapi_service()
+
+        # Fetch articles from Strapi (with caching)
+        articles = strapi.fetch_articles(
+            limit=limit + offset,  # Fetch more to handle offset
+            sort="publishedAt:desc",
+            use_cache=True
+        )
+
+        # Apply category filter if provided
+        if category:
+            articles = [
+                article for article in articles
+                if article.get('category', '').lower() == category.lower()
+            ]
+
+        # Apply pagination offset
+        if offset > 0:
+            articles = articles[offset:]
+
+        # Limit results
+        articles = articles[:limit]
+
+        # If no articles found, return sample data as fallback
+        if not articles:
+            logger.warning("No articles found in Strapi, returning sample data")
+            return [
+                {
+                    "id": "art_001",
+                    "title": "The Five Tenets of Taekwondo: Building Character Through Martial Arts",
+                    "excerpt": "Explore how the core principles of courtesy, integrity, perseverance, self-control, and indomitable spirit shape martial artists and everyday life.",
+                    "url": "https://www.wwmaa.org/blog/five-tenets-taekwondo",
+                    "published_at": "2025-10-15T10:00:00Z",
+                    "author": "WWMAA Team",
+                    "image_url": "",
+                    "category": "Training"
+                },
+                {
+                    "id": "art_002",
+                    "title": "Breaking Barriers: Women in Martial Arts Leadership",
+                    "excerpt": "Celebrating the journey of women who have shattered glass ceilings to become influential leaders, instructors, and champions in martial arts.",
+                    "url": "https://www.wwmaa.org/blog/women-martial-arts-leadership",
+                    "published_at": "2025-10-22T14:30:00Z",
+                    "author": "WWMAA Team",
+                    "image_url": "",
+                    "category": "Leadership"
+                },
+                {
+                    "id": "art_003",
+                    "title": "Kata vs. Kumite: Understanding the Balance in Karate Training",
+                    "excerpt": "Learn why mastering both forms practice (kata) and sparring (kumite) is essential for developing complete martial arts skills.",
+                    "url": "https://www.wwmaa.org/blog/kata-vs-kumite-balance",
+                    "published_at": "2025-10-28T09:15:00Z",
+                    "author": "WWMAA Team",
+                    "image_url": "",
+                    "category": "Training"
+                },
+                {
+                    "id": "art_004",
+                    "title": "Self-Defense Strategies Every Woman Should Know",
+                    "excerpt": "Practical, effective self-defense techniques and awareness strategies designed specifically for women's safety and empowerment.",
+                    "url": "https://www.wwmaa.org/blog/self-defense-women",
+                    "published_at": "2025-11-05T16:45:00Z",
+                    "author": "WWMAA Team",
+                    "image_url": "",
+                    "category": "Self-Defense"
+                },
+                {
+                    "id": "art_005",
+                    "title": "The Mental Game: Building Confidence Through Martial Arts",
+                    "excerpt": "Discover how consistent martial arts training builds mental resilience, confidence, and emotional regulation that extends beyond the dojo.",
+                    "url": "https://www.wwmaa.org/blog/mental-game-confidence",
+                    "published_at": "2025-11-10T11:20:00Z",
+                    "author": "WWMAA Team",
+                    "image_url": "",
+                    "category": "Mental Health"
+                }
+            ]
+
+        logger.info(f"Returning {len(articles)} blog articles from Strapi")
+        return articles
+
+    except StrapiError as e:
+        logger.error(f"Strapi service error: {e}", exc_info=True)
+        # Return empty array on Strapi error for graceful degradation
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error fetching blog articles: {e}", exc_info=True)
+        # Return empty array on any error for graceful degradation
+        return []
+
+
 @router.get("/posts")
 async def list_blog_posts(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Posts per page"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    tag: Optional[str] = Query(None, description="Filter by tag"),
-    search: Optional[str] = Query(None, description="Search in title and excerpt"),
-    sort_by: str = Query("published_at", description="Sort field"),
+    sort_by: str = Query("publishedAt", description="Sort field (publishedAt, title)"),
     sort_order: str = Query("desc", description="Sort order (asc/desc)")
 ):
     """
     List all published blog posts
 
-    Returns paginated list of blog posts with filtering and search.
+    Returns paginated list of blog posts with filtering.
 
     Args:
         page: Page number (starts at 1)
         limit: Posts per page (max 100)
         category: Filter by category
-        tag: Filter by tag
-        search: Search query for title/excerpt
-        sort_by: Sort field (published_at, title, view_count)
+        sort_by: Sort field (publishedAt, title)
         sort_order: Sort order (asc, desc)
 
     Returns:
         Paginated list of blog posts with metadata
     """
     try:
-        zerodb = get_zerodb_client()
+        logger.info(f"Listing blog posts: page={page}, limit={limit}, category={category}")
 
-        # Build query filters
-        filters = {
-            'status': ArticleStatus.PUBLISHED
-        }
+        strapi = get_strapi_service()
 
-        if category:
-            filters['category'] = category
-
-        if tag:
-            filters['tags'] = {'$contains': tag}
+        # Build sort parameter for Strapi
+        strapi_sort = f"{sort_by}:{sort_order}"
 
         # Calculate offset
         offset = (page - 1) * limit
 
-        # Fetch posts
-        posts = zerodb.query_documents(
-            collection='articles',
-            filters=filters,
-            limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order
+        # Fetch articles from Strapi (fetch more for pagination)
+        # Since Strapi doesn't support offset directly, we fetch a larger batch
+        fetch_limit = min(offset + limit, 100)
+
+        articles = strapi.fetch_articles(
+            limit=fetch_limit,
+            sort=strapi_sort,
+            use_cache=True
         )
 
-        # Apply search filter if provided (post-query filtering)
-        if search and posts:
-            search_lower = search.lower()
-            posts = [
-                post for post in posts
-                if search_lower in post.get('title', '').lower() or
-                   search_lower in post.get('excerpt', '').lower()
+        # Apply category filter if provided
+        if category:
+            articles = [
+                article for article in articles
+                if article.get('category', '').lower() == category.lower()
             ]
 
-        # Get total count for pagination
-        total = zerodb.count_documents('articles', filters)
+        # Get total count (before pagination)
+        total = len(articles)
+
+        # Apply pagination
+        paginated_articles = articles[offset:offset + limit]
 
         # Calculate pagination metadata
-        total_pages = (total + limit - 1) // limit
+        total_pages = (total + limit - 1) // limit if total > 0 else 1
         has_next = page < total_pages
         has_prev = page > 1
 
         return {
-            "data": posts,
+            "data": paginated_articles,
             "pagination": {
                 "page": page,
                 "limit": limit,
@@ -121,6 +227,12 @@ async def list_blog_posts(
             }
         }
 
+    except StrapiError as e:
+        logger.error(f"Strapi service error: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch blog posts from CMS"
+        )
     except Exception as e:
         logger.error(f"Error listing blog posts: {e}")
         raise HTTPException(
@@ -134,8 +246,6 @@ async def get_blog_post_by_slug(slug: str):
     """
     Get a single blog post by slug
 
-    Increments view count on each access.
-
     Args:
         slug: URL-friendly post slug
 
@@ -146,50 +256,29 @@ async def get_blog_post_by_slug(slug: str):
         HTTPException: If post not found
     """
     try:
-        zerodb = get_zerodb_client()
+        logger.info(f"Fetching blog post by slug: {slug}")
 
-        # Find post by slug
-        posts = zerodb.query_documents(
-            collection='articles',
-            filters={'slug': slug},
-            limit=1
-        )
+        strapi = get_strapi_service()
 
-        if not posts:
+        # Fetch article by slug from Strapi (with caching)
+        article = strapi.fetch_article_by_slug(slug, use_cache=True)
+
+        if not article:
             raise HTTPException(
                 status_code=404,
                 detail="Blog post not found"
             )
 
-        post = posts[0]
-
-        # Only show published posts
-        if post.get('status') != ArticleStatus.PUBLISHED:
-            raise HTTPException(
-                status_code=404,
-                detail="Blog post not found"
-            )
-
-        # Increment view count
-        post_id = post.get('id')
-        current_view_count = post.get('view_count', 0)
-
-        zerodb.update_document(
-            collection='articles',
-            document_id=str(post_id),
-            updates={
-                'view_count': current_view_count + 1,
-                'updated_at': datetime.utcnow()
-            }
-        )
-
-        # Update view count in response
-        post['view_count'] = current_view_count + 1
-
-        return post
+        return article
 
     except HTTPException:
         raise
+    except StrapiError as e:
+        logger.error(f"Strapi service error fetching post {slug}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch blog post from CMS"
+        )
     except Exception as e:
         logger.error(f"Error fetching blog post {slug}: {e}")
         raise HTTPException(
@@ -209,20 +298,18 @@ async def list_blog_categories():
         List of category objects with post counts
     """
     try:
-        zerodb = get_zerodb_client()
+        logger.info("Fetching blog categories")
 
-        # Fetch all published posts
-        posts = zerodb.query_documents(
-            collection='articles',
-            filters={'status': ArticleStatus.PUBLISHED},
-            limit=10000  # Large limit to get all posts
-        )
+        strapi = get_strapi_service()
+
+        # Fetch all articles to extract categories
+        articles = strapi.fetch_articles(limit=100, use_cache=True)
 
         # Extract and count categories
         category_counts = {}
 
-        for post in posts:
-            category = post.get('category')
+        for article in articles:
+            category = article.get('category')
             if category:
                 category_counts[category] = category_counts.get(category, 0) + 1
 
@@ -241,6 +328,12 @@ async def list_blog_categories():
             "total": len(categories)
         }
 
+    except StrapiError as e:
+        logger.error(f"Strapi service error: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch categories from CMS"
+        )
     except Exception as e:
         logger.error(f"Error listing categories: {e}")
         raise HTTPException(
@@ -257,39 +350,18 @@ async def list_blog_tags():
     Returns unique tags from all published posts.
 
     Returns:
-        List of tag objects with post counts
+        List of tag objects with post counts (empty for now as Strapi doesn't have tags field)
     """
     try:
-        zerodb = get_zerodb_client()
+        logger.info("Fetching blog tags")
 
-        # Fetch all published posts
-        posts = zerodb.query_documents(
-            collection='articles',
-            filters={'status': ArticleStatus.PUBLISHED},
-            limit=10000  # Large limit to get all posts
-        )
-
-        # Extract and count tags
-        tag_counts = {}
-
-        for post in posts:
-            tags = post.get('tags', [])
-            for tag in tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-
-        # Format response
-        tags = [
-            {
-                "name": tag,
-                "slug": tag.lower().replace(' ', '-'),
-                "count": count
-            }
-            for tag, count in sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)
-        ]
+        # Note: Current Strapi schema doesn't include tags
+        # This endpoint returns empty array for backward compatibility
+        # Add tags support in Strapi schema and update this endpoint when needed
 
         return {
-            "data": tags,
-            "total": len(tags)
+            "data": [],
+            "total": 0
         }
 
     except Exception as e:
@@ -297,120 +369,6 @@ async def list_blog_tags():
         raise HTTPException(
             status_code=500,
             detail="Failed to fetch tags"
-        )
-
-
-@router.get("/posts/related/{post_id}")
-async def get_related_posts(
-    post_id: UUID,
-    limit: int = Query(5, ge=1, le=20, description="Number of related posts")
-):
-    """
-    Get related blog posts
-
-    Finds related posts based on:
-    1. Same category
-    2. Overlapping tags
-    3. Recent posts
-
-    Args:
-        post_id: Current post UUID
-        limit: Number of related posts to return
-
-    Returns:
-        List of related posts
-
-    Raises:
-        HTTPException: If post not found
-    """
-    try:
-        zerodb = get_zerodb_client()
-
-        # Get current post
-        try:
-            current_post = zerodb.get_document('articles', str(post_id))
-        except:
-            raise HTTPException(
-                status_code=404,
-                detail="Blog post not found"
-            )
-
-        category = current_post.get('category')
-        tags = current_post.get('tags', [])
-
-        # Find related posts
-        related_posts = []
-
-        # 1. Posts in same category
-        if category:
-            category_posts = zerodb.query_documents(
-                collection='articles',
-                filters={
-                    'status': ArticleStatus.PUBLISHED,
-                    'category': category,
-                    'id': {'$ne': str(post_id)}  # Exclude current post
-                },
-                limit=limit,
-                sort_by='published_at',
-                sort_order='desc'
-            )
-            related_posts.extend(category_posts)
-
-        # 2. Posts with overlapping tags (if not enough from category)
-        if len(related_posts) < limit and tags:
-            for tag in tags:
-                tag_posts = zerodb.query_documents(
-                    collection='articles',
-                    filters={
-                        'status': ArticleStatus.PUBLISHED,
-                        'tags': {'$contains': tag},
-                        'id': {'$ne': str(post_id)}
-                    },
-                    limit=limit - len(related_posts),
-                    sort_by='published_at',
-                    sort_order='desc'
-                )
-
-                # Add posts that aren't already in related_posts
-                existing_ids = {p['id'] for p in related_posts}
-                for post in tag_posts:
-                    if post['id'] not in existing_ids and len(related_posts) < limit:
-                        related_posts.append(post)
-                        existing_ids.add(post['id'])
-
-        # 3. Recent posts (if still not enough)
-        if len(related_posts) < limit:
-            recent_posts = zerodb.query_documents(
-                collection='articles',
-                filters={
-                    'status': ArticleStatus.PUBLISHED,
-                    'id': {'$ne': str(post_id)}
-                },
-                limit=limit - len(related_posts),
-                sort_by='published_at',
-                sort_order='desc'
-            )
-
-            existing_ids = {p['id'] for p in related_posts}
-            for post in recent_posts:
-                if post['id'] not in existing_ids and len(related_posts) < limit:
-                    related_posts.append(post)
-
-        # Limit to requested number
-        related_posts = related_posts[:limit]
-
-        return {
-            "data": related_posts,
-            "total": len(related_posts)
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching related posts for {post_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to fetch related posts"
         )
 
 
@@ -438,25 +396,27 @@ async def get_posts_by_category(
     )
 
 
-@router.get("/posts/by-tag/{tag}")
-async def get_posts_by_tag(
-    tag: str,
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100)
-):
+@router.get("/health")
+async def health_check():
     """
-    Get blog posts by tag
-
-    Args:
-        tag: Tag name (or slug)
-        page: Page number
-        limit: Posts per page
+    Health check endpoint for blog service
 
     Returns:
-        Paginated list of posts with tag
+        Health status and Strapi connection info
     """
-    return await list_blog_posts(
-        page=page,
-        limit=limit,
-        tag=tag
-    )
+    try:
+        strapi = get_strapi_service()
+        health_status = strapi.health_check()
+
+        return {
+            "service": "blog",
+            "status": "healthy" if health_status.get("status") == "healthy" else "degraded",
+            "strapi": health_status
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "service": "blog",
+            "status": "unhealthy",
+            "error": str(e)
+        }

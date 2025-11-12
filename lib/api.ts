@@ -7,7 +7,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const LIVE = {
   memberships: `${API_URL}/api/subscriptions`,
   applications: `${API_URL}/api/applications`,
-  events: `${API_URL}/api/events`,
+  events: `${API_URL}/api/events/public`,
+  event: (id: string) => `${API_URL}/api/events/public/${id}`,
   rsvp: (id: string) => `${API_URL}/api/events/${id}/rsvp`,
   search: `${API_URL}/api/search/query`,
   searchFeedback: `${API_URL}/api/search/feedback`,
@@ -37,11 +38,16 @@ export const api = {
   },
   async getEvents(): Promise<EventItem[]> {
     if (MODE === "mock") return events;
-    const r = await fetch(LIVE.events); return r.json();
+    const r = await fetch(LIVE.events);
+    const data = await r.json();
+    // Backend returns { events: [...], total, limit, offset, has_more }
+    return data.events || [];
   },
   async getEvent(id: string): Promise<EventItem | null> {
     if (MODE === "mock") return events.find(e => e.id === id) ?? null;
-    const r = await fetch(`${LIVE.events}/${id}`); return r.json();
+    const r = await fetch(LIVE.event(id));
+    if (!r.ok) return null;
+    return r.json();
   },
   async rsvpEvent(id: string): Promise<{ ok: boolean }> {
     if (MODE === "mock") return { ok: true };

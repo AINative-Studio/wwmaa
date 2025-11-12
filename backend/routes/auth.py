@@ -26,6 +26,7 @@ from backend.middleware.rate_limit import (
     rate_limit_password_reset
 )
 from backend.middleware.csrf import rotate_csrf_token
+from backend.middleware.auth_middleware import CurrentUser
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1308,6 +1309,170 @@ async def login(request: LoginRequest, response: Response) -> LoginResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later."
+        )
+
+
+class CurrentUserResponse(BaseModel):
+    """Current user profile response"""
+    id: str = Field(..., description="User ID")
+    name: str = Field(..., description="User full name")
+    email: EmailStr = Field(..., description="User email address")
+    role: str = Field(..., description="User role")
+    belt_rank: Optional[str] = Field(None, description="Current belt rank")
+    dojo: Optional[str] = Field(None, description="Affiliated dojo/school")
+    country: str = Field(default="USA", description="Country")
+    locale: str = Field(default="en-US", description="User locale preference")
+
+
+@router.get(
+    "/me",
+    response_model=CurrentUserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get current user profile",
+    description="Return the current authenticated user's profile information"
+)
+async def get_current_user_profile(
+    current_user: Dict = Depends(CurrentUser())
+) -> CurrentUserResponse:
+    """
+    Get current authenticated user's profile
+
+    This endpoint:
+    1. Validates the JWT access token via CurrentUser dependency
+    2. Queries ZeroDB users collection for user data
+    3. Queries ZeroDB profiles collection for extended profile data (if exists)
+    4. Returns user profile with: id, name, email, role, belt_rank, dojo, country, locale
+    5. Falls back to mock data if user not found in database
+
+    Security:
+    - Requires valid JWT access token
+    - User must be authenticated
+
+    Args:
+        current_user: Authenticated user information from JWT token
+
+    Returns:
+        CurrentUserResponse with user profile data
+
+    Raises:
+        HTTPException 401: Invalid or expired token
+        HTTPException 500: Database error
+    """
+    db_client = get_zerodb_client()
+
+    try:
+        user_id = str(current_user["id"])
+        user_email = current_user["email"]
+        user_role = current_user["role"]
+
+        logger.info(f"Fetching profile for user: {user_id}")
+
+        # Query users collection for basic user data
+        users = db_client.query_documents(
+            collection="users",
+            filters={"id": user_id},
+            limit=1
+        )
+
+        # If user not found in database, return mock data with token information
+        if not users.get("documents") or len(users["documents"]) == 0:
+            logger.warning(f"User {user_id} not found in database, returning mock data")
+            return CurrentUserResponse(
+                id=user_id,
+                name="Guest User",
+                email=user_email,
+                role=user_role,
+                belt_rank=None,
+                dojo=None,
+                country="USA",
+                locale="en-US"
+            )
+
+        user_doc = users["documents"][0]
+        user_data = user_doc.get("data", {})
+
+        # Extract basic user information
+        first_name = user_data.get("first_name", "")
+        last_name = user_data.get("last_name", "")
+        full_name = f"{first_name} {last_name}".strip() or "Unknown User"
+
+        # Initialize profile data
+        belt_rank = None
+        dojo = None
+        country = "USA"
+        locale = "en-US"
+
+        # Query profiles collection if profile_id exists
+        profile_id = user_data.get("profile_id")
+        if profile_id:
+            try:
+                logger.info(f"Fetching profile details for profile_id: {profile_id}")
+                profiles = db_client.query_documents(
+                    collection="profiles",
+                    filters={"id": profile_id},
+                    limit=1
+                )
+
+                if profiles.get("documents") and len(profiles["documents"]) > 0:
+                    profile_doc = profiles["documents"][0]
+                    profile_data = profile_doc.get("data", {})
+
+                    # Extract profile information
+                    country = profile_data.get("country", "USA")
+
+                    # Get belt rank from ranks dictionary (first discipline's rank)
+                    ranks = profile_data.get("ranks", {})
+                    if ranks:
+                        # Get the first rank from the dictionary
+                        belt_rank = next(iter(ranks.values()), None)
+
+                    # Get dojo/school from schools_affiliated list (first school)
+                    schools = profile_data.get("schools_affiliated", [])
+                    if schools:
+                        dojo = schools[0]
+
+                    logger.info(f"Profile data loaded for user {user_id}")
+                else:
+                    logger.info(f"No profile found for profile_id: {profile_id}")
+
+            except Exception as e:
+                # Log profile fetch error but don't fail the request
+                logger.error(f"Error fetching profile for user {user_id}: {e}")
+
+        return CurrentUserResponse(
+            id=user_id,
+            name=full_name,
+            email=user_email,
+            role=user_role,
+            belt_rank=belt_rank,
+            dojo=dojo,
+            country=country,
+            locale=locale
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+
+    except ZeroDBError as e:
+        logger.error(f"ZeroDB error fetching user profile: {e}")
+        # Return mock data on database error
+        return CurrentUserResponse(
+            id=str(current_user["id"]),
+            name="Guest User",
+            email=current_user["email"],
+            role=current_user["role"],
+            belt_rank=None,
+            dojo=None,
+            country="USA",
+            locale="en-US"
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error fetching user profile: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user profile. Please try again later."
         )
 
 

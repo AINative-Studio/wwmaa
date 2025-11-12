@@ -115,7 +115,20 @@ class Settings(BaseSettings):
     )
 
     # ==========================================
-    # BeeHiiv Blog Integration Configuration
+    # Strapi CMS Integration Configuration
+    # ==========================================
+    STRAPI_URL: str = Field(
+        default="http://localhost:1337",
+        description="Strapi CMS base URL (http://localhost:1337 for local, http://strapi:1337 for Docker)"
+    )
+
+    STRAPI_API_TOKEN: str = Field(
+        default="",
+        description="Strapi API token for authentication (optional for public content)"
+    )
+
+    # ==========================================
+    # BeeHiiv Blog Integration Configuration (Legacy)
     # ==========================================
     BEEHIIV_API_KEY: str = Field(
         default="",
@@ -569,6 +582,18 @@ class Settings(BaseSettings):
         return {
             "api_key": self.POSTMARK_API_KEY,
             "from_email": self.FROM_EMAIL
+        }
+
+    def get_strapi_config(self) -> dict:
+        """
+        Get Strapi CMS configuration as a dictionary.
+
+        Returns:
+            Dictionary with Strapi configuration
+        """
+        return {
+            "strapi_url": self.STRAPI_URL,
+            "api_token": self.STRAPI_API_TOKEN
         }
 
     def get_ai_registry_config(self) -> dict:

@@ -21,14 +21,17 @@ from backend.routes import payments
 from backend.routes import checkout
 from backend.routes import billing
 from backend.routes import stripe_webhooks
+from backend.routes import events
 from backend.routes import event_attendees
 from backend.routes import event_rsvps
 from backend.routes import search
 from backend.routes import newsletter
 from backend.routes import blog
+from backend.routes import certifications
 from backend.routes import security
 from backend.routes import privacy
 from backend.routes import health
+from backend.routes import subscriptions
 from backend.routes.admin import search_analytics
 from backend.routes.admin import indexing
 from backend.routes.admin import training_analytics
@@ -231,12 +234,15 @@ app.include_router(application_submission.router)
 app.include_router(payments.router)
 app.include_router(checkout.router)
 app.include_router(billing.router)
+app.include_router(subscriptions.router)
 app.include_router(stripe_webhooks.router)
+app.include_router(events.router)  # Events management (includes public endpoints)
 app.include_router(event_attendees.router)
 app.include_router(event_rsvps.router)
 app.include_router(search.router)
 app.include_router(newsletter.router)
 app.include_router(blog.router)
+app.include_router(certifications.router)
 app.include_router(security.router)
 app.include_router(privacy.router)
 app.include_router(beehiiv.router)

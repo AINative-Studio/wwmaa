@@ -2542,3 +2542,391 @@ class TestTokenRotationFlow:
             assert response2.status_code == 403
             assert "reuse detected" in response2.json()["detail"].lower()
             auth_service.invalidate_token_family.assert_called_with(family_id)
+
+
+# ============================================================================
+# GET CURRENT USER PROFILE TESTS (/api/auth/me)
+# ============================================================================
+
+class TestGetCurrentUserProfile:
+    """Test GET /api/auth/me endpoint"""
+
+    def test_get_current_user_profile_success_with_profile(self, client, mock_zerodb_client):
+        """Test successful retrieval of user profile with profile data"""
+        user_id = str(uuid4())
+        profile_id = str(uuid4())
+
+        # Mock authentication
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "john.doe@example.com",
+                    "role": "member"
+                }
+            )
+
+            # Mock user document
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "john.doe@example.com",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "role": "member",
+                    "profile_id": profile_id
+                }
+            }
+
+            # Mock profile document
+            mock_profile = {
+                "id": profile_id,
+                "data": {
+                    "country": "Japan",
+                    "ranks": {
+                        "Karate": "2nd Dan Black Belt",
+                        "Judo": "1st Dan Black Belt"
+                    },
+                    "schools_affiliated": [
+                        "Tokyo Martial Arts Academy",
+                        "Kyoto Dojo"
+                    ]
+                }
+            }
+
+            # Set up query responses
+            mock_zerodb_client.query_documents.side_effect = [
+                {"documents": [mock_user]},  # First call: users collection
+                {"documents": [mock_profile]}  # Second call: profiles collection
+            ]
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["id"] == user_id
+            assert data["name"] == "John Doe"
+            assert data["email"] == "john.doe@example.com"
+            assert data["role"] == "member"
+            assert data["belt_rank"] == "2nd Dan Black Belt"
+            assert data["dojo"] == "Tokyo Martial Arts Academy"
+            assert data["country"] == "Japan"
+            assert data["locale"] == "en-US"
+
+            # Verify both queries were made
+            assert mock_zerodb_client.query_documents.call_count == 2
+
+    def test_get_current_user_profile_success_without_profile(self, client, mock_zerodb_client):
+        """Test successful retrieval when user has no profile"""
+        user_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "jane.smith@example.com",
+                    "role": "public"
+                }
+            )
+
+            # Mock user document without profile_id
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "jane.smith@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "role": "public",
+                    "profile_id": None
+                }
+            }
+
+            mock_zerodb_client.query_documents.return_value = {
+                "documents": [mock_user]
+            }
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["id"] == user_id
+            assert data["name"] == "Jane Smith"
+            assert data["email"] == "jane.smith@example.com"
+            assert data["role"] == "public"
+            assert data["belt_rank"] is None
+            assert data["dojo"] is None
+            assert data["country"] == "USA"
+            assert data["locale"] == "en-US"
+
+    def test_get_current_user_profile_user_not_found_returns_mock(self, client, mock_zerodb_client):
+        """Test fallback to mock data when user not found in database"""
+        user_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "guest@example.com",
+                    "role": "public"
+                }
+            )
+
+            # User not found in database
+            mock_zerodb_client.query_documents.return_value = {
+                "documents": []
+            }
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["id"] == user_id
+            assert data["name"] == "Guest User"
+            assert data["email"] == "guest@example.com"
+            assert data["role"] == "public"
+            assert data["belt_rank"] is None
+            assert data["dojo"] is None
+            assert data["country"] == "USA"
+            assert data["locale"] == "en-US"
+
+    def test_get_current_user_profile_no_first_last_name(self, client, mock_zerodb_client):
+        """Test profile retrieval when user has no first/last name"""
+        user_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "noname@example.com",
+                    "role": "member"
+                }
+            )
+
+            # Mock user without names
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "noname@example.com",
+                    "first_name": "",
+                    "last_name": "",
+                    "role": "member",
+                    "profile_id": None
+                }
+            }
+
+            mock_zerodb_client.query_documents.return_value = {
+                "documents": [mock_user]
+            }
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["name"] == "Unknown User"
+
+    def test_get_current_user_profile_profile_not_found(self, client, mock_zerodb_client):
+        """Test when profile_id exists but profile document not found"""
+        user_id = str(uuid4())
+        profile_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "test@example.com",
+                    "role": "member"
+                }
+            )
+
+            # User has profile_id but profile not found
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "test@example.com",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "role": "member",
+                    "profile_id": profile_id
+                }
+            }
+
+            # First call returns user, second call returns no profile
+            mock_zerodb_client.query_documents.side_effect = [
+                {"documents": [mock_user]},
+                {"documents": []}
+            ]
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Should return user data with default profile values
+            assert data["name"] == "Test User"
+            assert data["belt_rank"] is None
+            assert data["dojo"] is None
+            assert data["country"] == "USA"
+
+    def test_get_current_user_profile_empty_ranks_and_schools(self, client, mock_zerodb_client):
+        """Test profile with empty ranks and schools lists"""
+        user_id = str(uuid4())
+        profile_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "test@example.com",
+                    "role": "member"
+                }
+            )
+
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "test@example.com",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "role": "member",
+                    "profile_id": profile_id
+                }
+            }
+
+            # Profile with empty collections
+            mock_profile = {
+                "id": profile_id,
+                "data": {
+                    "country": "Canada",
+                    "ranks": {},
+                    "schools_affiliated": []
+                }
+            }
+
+            mock_zerodb_client.query_documents.side_effect = [
+                {"documents": [mock_user]},
+                {"documents": [mock_profile]}
+            ]
+
+            response = client.get("/api/auth/me")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["belt_rank"] is None
+            assert data["dojo"] is None
+            assert data["country"] == "Canada"
+
+    def test_get_current_user_profile_database_error_returns_mock(self, client, mock_zerodb_client):
+        """Test fallback to mock data on database error"""
+        user_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "error@example.com",
+                    "role": "member"
+                }
+            )
+
+            # Simulate database error
+            from backend.services.zerodb_service import ZeroDBError
+            mock_zerodb_client.query_documents.side_effect = ZeroDBError("Database connection failed")
+
+            response = client.get("/api/auth/me")
+
+            # Should return mock data, not error
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["id"] == user_id
+            assert data["name"] == "Guest User"
+            assert data["email"] == "error@example.com"
+
+    def test_get_current_user_profile_profile_fetch_error_continues(self, client, mock_zerodb_client):
+        """Test that profile fetch error doesn't fail the request"""
+        user_id = str(uuid4())
+        profile_id = str(uuid4())
+
+        with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+            mock_current_user.return_value = MagicMock(
+                return_value={
+                    "id": user_id,
+                    "email": "test@example.com",
+                    "role": "member"
+                }
+            )
+
+            mock_user = {
+                "id": user_id,
+                "data": {
+                    "email": "test@example.com",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "role": "member",
+                    "profile_id": profile_id
+                }
+            }
+
+            # First query succeeds, second fails
+            mock_zerodb_client.query_documents.side_effect = [
+                {"documents": [mock_user]},
+                Exception("Profile fetch failed")
+            ]
+
+            response = client.get("/api/auth/me")
+
+            # Should still return user data with defaults
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["name"] == "Test User"
+            assert data["belt_rank"] is None
+            assert data["dojo"] is None
+
+    def test_get_current_user_profile_unauthorized_no_token(self, client):
+        """Test endpoint returns 401 when no auth token provided"""
+        response = client.get("/api/auth/me")
+
+        # FastAPI security will return 403 for missing credentials
+        assert response.status_code == 403
+
+    def test_get_current_user_profile_all_roles(self, client, mock_zerodb_client):
+        """Test endpoint works for all user roles"""
+        roles = ["public", "member", "instructor", "board_member", "admin"]
+
+        for role in roles:
+            user_id = str(uuid4())
+
+            with patch('backend.routes.auth.CurrentUser') as mock_current_user:
+                mock_current_user.return_value = MagicMock(
+                    return_value={
+                        "id": user_id,
+                        "email": f"{role}@example.com",
+                        "role": role
+                    }
+                )
+
+                mock_user = {
+                    "id": user_id,
+                    "data": {
+                        "email": f"{role}@example.com",
+                        "first_name": role.capitalize(),
+                        "last_name": "User",
+                        "role": role,
+                        "profile_id": None
+                    }
+                }
+
+                mock_zerodb_client.query_documents.return_value = {
+                    "documents": [mock_user]
+                }
+
+                response = client.get("/api/auth/me")
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["role"] == role
