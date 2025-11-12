@@ -1,0 +1,14 @@
+# Nixpacks configuration for Next.js frontend
+# This file tells Railway to build and run the Next.js app
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"

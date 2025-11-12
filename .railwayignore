@@ -1,0 +1,9 @@
+# Ignore backend files for frontend service deployment
+Dockerfile
+railway.json
+railway.toml
+railway-start.sh
+backend/
+docker-compose.yml
+.dockerignore
+pytest.ini
