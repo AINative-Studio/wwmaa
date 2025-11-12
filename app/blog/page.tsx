@@ -2,6 +2,8 @@ import { api } from "@/lib/api";
 import { blogPosts } from "@/lib/blog-posts";
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Martial Arts Training Tips & News | Expert Articles | WWMAA Blog",
   description: "Explore expert martial arts articles covering training techniques, belt ranking systems, tournament preparation, choosing styles, and mastery from WWMAA instructors.",

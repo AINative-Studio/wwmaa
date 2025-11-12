@@ -5,6 +5,8 @@ import { TierCard } from "@/components/cards/tier-card";
 import Link from "next/link";
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "World Wide Martial Arts Association | Judo, Karate & Self-Defense Training | WWMAA",
   description: "Join the World Wide Martial Arts Association. Offering judo, karate, and martial arts training worldwide. Become a member today!",

@@ -3,6 +3,8 @@ import { TierCard } from "@/components/cards/tier-card";
 import { ApplicationForm } from "@/components/forms/application-form";
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Martial Arts Membership Plans | Join WWMAA Today | World Wide Martial Arts",
   description: "Choose from Basic, Premium, or Instructor membership plans. Access exclusive training, tournaments, and certifications with WWMAA.",

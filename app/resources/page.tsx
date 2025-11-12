@@ -1,6 +1,8 @@
 import { api } from "@/lib/api";
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Martial Arts Training Resources & Certifications | Belt Requirements | WWMAA",
   description: "Access comprehensive martial arts training materials, belt promotion requirements, tournament rules, instructor certifications, and technical resources. Everything you need for martial arts excellence.",
