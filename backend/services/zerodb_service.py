@@ -80,17 +80,23 @@ class ZeroDBClient:
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        email: Optional[str] = None,
+        password: Optional[str] = None,
+        project_id: Optional[str] = None,
         timeout: int = 10,
         max_retries: int = 3,
         pool_connections: int = 10,
         pool_maxsize: int = 10
     ):
         """
-        Initialize ZeroDB client
+        Initialize ZeroDB client with project-based API support
 
         Args:
-            api_key: ZeroDB API key (defaults to settings.ZERODB_API_KEY)
+            api_key: ZeroDB API key (defaults to settings.ZERODB_API_KEY) - used for legacy methods
             base_url: ZeroDB API base URL (defaults to settings.ZERODB_API_BASE_URL)
+            email: ZeroDB account email (defaults to settings.ZERODB_EMAIL) - used for JWT authentication
+            password: ZeroDB account password (defaults to settings.ZERODB_PASSWORD) - used for JWT authentication
+            project_id: ZeroDB project ID (defaults to settings.ZERODB_PROJECT_ID)
             timeout: Request timeout in seconds (default: 10)
             max_retries: Maximum number of retries for failed requests (default: 3)
             pool_connections: Number of connection pool connections (default: 10)
@@ -98,21 +104,35 @@ class ZeroDBClient:
         """
         self.api_key = api_key or settings.ZERODB_API_KEY
         self.base_url = (base_url or str(settings.ZERODB_API_BASE_URL)).rstrip('/')
+        self.email = email or settings.ZERODB_EMAIL
+        self.password = password or settings.ZERODB_PASSWORD
+        self.project_id = project_id or getattr(settings, 'ZERODB_PROJECT_ID', None)
         self.timeout = timeout
+        self._jwt_token = None
+        self._jwt_token_expiry = None
 
-        if not self.api_key:
-            raise ZeroDBAuthenticationError("ZERODB_API_KEY is required")
         if not self.base_url:
             raise ZeroDBConnectionError("ZERODB_API_BASE_URL is required")
 
+        # Configure session with connection pooling and retry logic
+        self.session = self._create_session(max_retries, pool_connections, pool_maxsize)
+
+        # Initialize headers (JWT token will be added when needed)
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
 
-        # Configure session with connection pooling and retry logic
-        self.session = self._create_session(max_retries, pool_connections, pool_maxsize)
+        # If using project-based API, authenticate to get JWT token
+        if self.project_id and self.email and self.password:
+            logger.info(f"ZeroDBClient initialized with project-based API (project_id: {self.project_id})")
+            self._authenticate()
+        elif self.api_key:
+            # Legacy API key authentication
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
+            logger.info(f"ZeroDBClient initialized with legacy API key authentication")
+        else:
+            logger.warning("ZeroDBClient initialized without authentication credentials")
 
         logger.info(f"ZeroDBClient initialized with base_url: {self.base_url}")
 
@@ -167,6 +187,94 @@ class ZeroDBClient:
         """
         path = "/".join(str(part).strip("/") for part in parts if part)
         return urljoin(self.base_url + "/", path)
+
+    def _authenticate(self) -> None:
+        """
+        Authenticate with ZeroDB using email/password to get JWT token
+
+        This method is called automatically during initialization if email and password are provided.
+        The JWT token is stored and used for subsequent requests.
+
+        Raises:
+            ZeroDBAuthenticationError: If authentication fails
+        """
+        if not self.email or not self.password:
+            raise ZeroDBAuthenticationError("Email and password are required for authentication")
+
+        url = self._build_url("v1", "public", "auth", "login-json")
+
+        payload = {
+            "username": self.email,
+            "password": self.password
+        }
+
+        logger.info(f"Authenticating with ZeroDB using email: {self.email}")
+
+        try:
+            response = self.session.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=self.timeout
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            access_token = data.get("access_token")
+            if not access_token:
+                raise ZeroDBAuthenticationError("No access token returned from authentication")
+
+            self._jwt_token = access_token
+            self.headers["Authorization"] = f"Bearer {access_token}"
+
+            logger.info("Successfully authenticated with ZeroDB")
+
+        except requests.exceptions.HTTPError as e:
+            error_message = f"Authentication failed: {e}"
+            try:
+                error_data = response.json()
+                error_message = error_data.get("detail") or error_data.get("message") or error_message
+            except ValueError:
+                pass
+
+            logger.error(error_message)
+            raise ZeroDBAuthenticationError(error_message)
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Authentication request failed: {e}")
+            raise ZeroDBConnectionError(f"Failed to authenticate: {e}")
+
+    def _ensure_authenticated(self) -> None:
+        """
+        Ensure the client is authenticated with a valid JWT token
+
+        If the token has expired or is not present, re-authenticate.
+        """
+        if not self._jwt_token:
+            if self.email and self.password:
+                self._authenticate()
+            else:
+                raise ZeroDBAuthenticationError("No authentication token available")
+
+    def _get_project_url(self, *parts: str) -> str:
+        """
+        Build a project-specific URL for the project-based API
+
+        Args:
+            *parts: URL path parts to append after the project ID
+
+        Returns:
+            Complete project URL string
+
+        Example:
+            _get_project_url("database", "tables", "users", "rows")
+            -> https://api.ainative.studio/v1/projects/{project_id}/database/tables/users/rows
+        """
+        if not self.project_id:
+            raise ZeroDBError("Project ID is required for project-based API calls")
+
+        return self._build_url("v1", "projects", self.project_id, *parts)
 
     def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
         """
@@ -268,6 +376,11 @@ class ZeroDBClient:
         document_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Implementation of create_document"""
+        # Use project-based API if project_id is configured
+        if self.project_id:
+            return self._create_row(collection, data, document_id)
+
+        # Legacy collection-based API
         url = self._build_url("collections", collection, "documents")
 
         payload = {"data": data}
@@ -285,6 +398,51 @@ class ZeroDBClient:
         result = self._handle_response(response)
         logger.info(f"Document created successfully with ID: {result.get('id')}")
         return result
+
+    def _create_row(
+        self,
+        table_name: str,
+        data: Dict[str, Any],
+        row_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a row in a table using the project-based API
+
+        Args:
+            table_name: Name of the table
+            data: Row data to create
+            row_id: Optional custom row ID (not typically supported by project API)
+
+        Returns:
+            Created row formatted as document for backward compatibility
+        """
+        self._ensure_authenticated()
+        url = self._get_project_url("database", "tables", table_name, "rows")
+
+        # Project API requires row_data wrapper
+        payload = {"row_data": data}
+
+        logger.info(f"Creating row in table '{table_name}'")
+        response = self.session.post(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+
+        # Transform project API response to collection API format
+        row_id = result.get("row_id")
+        row_data = result.get("row_data", {})
+
+        logger.info(f"Row created successfully with ID: {row_id}")
+
+        return {
+            "id": row_id,
+            "data": row_data,
+            "table_name": result.get("table_name")
+        }
 
     def get_document(
         self,
@@ -336,10 +494,13 @@ class ZeroDBClient:
         sort: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
-        Query documents from a collection with filters
+        Query documents from a collection/table with filters
+
+        This method supports both legacy collection-based API and project-based table API.
+        If project_id is configured, it uses the project-based API with tables/rows.
 
         Args:
-            collection: Name of the collection
+            collection: Name of the collection or table
             filters: Filter criteria (e.g., {"status": "active", "age": {"$gte": 18}})
             limit: Maximum number of documents to return (default: 10)
             offset: Number of documents to skip (default: 0)
@@ -351,6 +512,11 @@ class ZeroDBClient:
         Raises:
             ZeroDBError: If query fails
         """
+        # Use project-based API if project_id is configured
+        if self.project_id:
+            return self._query_rows(collection, filters, limit, offset, sort)
+
+        # Legacy collection-based API
         url = self._build_url("collections", collection, "query")
 
         payload = {
@@ -375,6 +541,91 @@ class ZeroDBClient:
         logger.info(f"Query returned {doc_count} documents")
         return result
 
+    def _query_rows(
+        self,
+        table_name: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 10,
+        offset: int = 0,
+        sort: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Query rows from a table using the project-based API
+
+        Args:
+            table_name: Name of the table
+            filters: Filter criteria
+            limit: Maximum number of rows to return
+            offset: Number of rows to skip
+            sort: Sort criteria
+
+        Returns:
+            Query results formatted as collection-style documents for backward compatibility
+
+        Note:
+            As of 2025-11-12, the ZeroDB project API endpoints are returning 500 errors
+            with "super(): no arguments". This is a server-side issue that needs to be
+            resolved on the ZeroDB platform. The implementation follows the correct API
+            specification from the OpenAPI docs.
+        """
+        self._ensure_authenticated()
+        url = self._get_project_url("database", "tables", table_name, "rows")
+
+        # Note: The ZeroDB project API may not support filters in GET requests
+        # For now, we'll fetch all rows and filter client-side if needed
+        params = {}
+        if limit:
+            params["limit"] = limit
+        if offset:
+            params["offset"] = offset
+
+        logger.info(f"Querying table '{table_name}' with filters: {filters}")
+        logger.debug(f"Request URL: {url}")
+        logger.debug(f"Request params: {params}")
+
+        response = self.session.get(
+            url,
+            params=params,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+
+        # Transform project API response to collection API format for backward compatibility
+        rows = result.get("rows", [])
+
+        # Apply filters client-side if provided
+        if filters:
+            filtered_rows = []
+            for row in rows:
+                row_data = row.get("row_data", {})
+                match = True
+                for key, value in filters.items():
+                    if row_data.get(key) != value:
+                        match = False
+                        break
+                if match:
+                    filtered_rows.append(row)
+            rows = filtered_rows
+
+        # Convert rows to documents format
+        documents = []
+        for row in rows:
+            documents.append({
+                "id": row.get("row_id"),
+                "data": row.get("row_data", {})
+            })
+
+        logger.info(f"Query returned {len(documents)} documents")
+
+        return {
+            "documents": documents,
+            "total": len(documents),
+            "limit": limit,
+            "offset": offset
+        }
+
     def update_document(
         self,
         collection: str,
@@ -383,11 +634,14 @@ class ZeroDBClient:
         merge: bool = True
     ) -> Dict[str, Any]:
         """
-        Update a document in a collection
+        Update a document in a collection/table
+
+        This method supports both legacy collection-based API and project-based table API.
+        If project_id is configured, it uses the project-based API with tables/rows.
 
         Args:
-            collection: Name of the collection
-            document_id: ID of the document to update
+            collection: Name of the collection or table
+            document_id: ID of the document/row to update
             data: Updated document data
             merge: If True, merge with existing data; if False, replace entirely
 
@@ -399,6 +653,11 @@ class ZeroDBClient:
             ZeroDBValidationError: If data is invalid
             ZeroDBError: If update fails
         """
+        # Use project-based API if project_id is configured
+        if self.project_id:
+            return self._update_row(collection, document_id, data, merge)
+
+        # Legacy collection-based API
         url = self._build_url("collections", collection, "documents", document_id)
 
         payload = {
@@ -416,6 +675,100 @@ class ZeroDBClient:
 
         result = self._handle_response(response)
         logger.info(f"Document '{document_id}' updated successfully")
+        return result
+
+    def _update_row(
+        self,
+        table_name: str,
+        row_id: str,
+        data: Dict[str, Any],
+        merge: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Update a row in a table using the project-based API
+
+        Args:
+            table_name: Name of the table
+            row_id: ID of the row to update
+            data: Updated row data
+            merge: If True, merge with existing data; if False, replace entirely
+
+        Returns:
+            Updated row formatted as document for backward compatibility
+        """
+        self._ensure_authenticated()
+        url = self._get_project_url("database", "tables", table_name, "rows", row_id)
+
+        # If merge is True, fetch existing data first
+        if merge:
+            try:
+                # Fetch existing row
+                response = self.session.get(
+                    url,
+                    headers=self.headers,
+                    timeout=self.timeout
+                )
+                existing = self._handle_response(response)
+                existing_data = existing.get("row_data", {})
+
+                # Merge data
+                merged_data = {**existing_data, **data}
+                payload = {"row_data": merged_data}
+            except Exception as e:
+                logger.warning(f"Failed to fetch existing row for merge: {e}")
+                # If fetch fails, just use the new data
+                payload = {"row_data": data}
+        else:
+            payload = {"row_data": data}
+
+        logger.info(f"Updating row '{row_id}' in table '{table_name}'")
+        response = self.session.put(
+            url,
+            json=payload,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+
+        # Transform project API response to collection API format
+        logger.info(f"Row '{row_id}' updated successfully")
+
+        return {
+            "id": result.get("row_id", row_id),
+            "data": result.get("row_data", data),
+            "table_name": result.get("table_name")
+        }
+
+    def list_tables(self) -> Dict[str, Any]:
+        """
+        List all tables in the current project
+
+        This method is only available when using the project-based API.
+
+        Returns:
+            List of table names and metadata
+
+        Raises:
+            ZeroDBError: If project_id is not configured or listing fails
+        """
+        if not self.project_id:
+            raise ZeroDBError("Project ID is required to list tables")
+
+        self._ensure_authenticated()
+        url = self._get_project_url("database", "tables")
+
+        logger.info(f"Listing tables for project '{self.project_id}'")
+
+        response = self.session.get(
+            url,
+            headers=self.headers,
+            timeout=self.timeout
+        )
+
+        result = self._handle_response(response)
+        logger.info(f"Found {len(result.get('tables', []))} tables")
+
         return result
 
     def delete_document(

@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         description="ZeroDB account password (optional, for some operations)"
     )
 
+    ZERODB_PROJECT_ID: str = Field(
+        ...,
+        min_length=10,
+        description="ZeroDB project ID for project-based API access"
+    )
+
     # ==========================================
     # JWT Configuration (REQUIRED)
     # ==========================================
@@ -556,7 +562,8 @@ class Settings(BaseSettings):
             "api_key": self.ZERODB_API_KEY,
             "base_url": str(self.ZERODB_API_BASE_URL),
             "email": self.ZERODB_EMAIL,
-            "password": self.ZERODB_PASSWORD
+            "password": self.ZERODB_PASSWORD,
+            "project_id": self.ZERODB_PROJECT_ID
         }
 
     def get_stripe_config(self) -> dict:
