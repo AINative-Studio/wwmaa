@@ -13,7 +13,8 @@
     "test:coverage": "jest --coverage",
     "test:a11y": "jest __tests__/a11y",
     "test:a11y:watch": "jest __tests__/a11y --watch",
-    "test:a11y:report": "node scripts/generate-a11y-report.js"
+    "test:a11y:report": "node scripts/generate-a11y-report.js",
+    "postinstall": "rm -rf node_modules/.cache node_modules/next/.next-swc-fallback || true"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
