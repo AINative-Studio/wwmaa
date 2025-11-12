@@ -2,16 +2,19 @@ import { tiers, me, applications, events, articles, certifications, searchSample
 import { MembershipTier, User, Application, EventItem, SearchResult, Article, Certification } from "./types";
 
 const MODE = process.env.NEXT_PUBLIC_API_MODE ?? "mock";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const LIVE = {
-  memberships: "/api/subscriptions",
-  applications: "/api/applications",
-  events: "/api/events",
-  rsvp: (id: string) => `/api/events/${id}/rsvp`,
-  search: "/api/search/query",
-  searchFeedback: "/api/search/feedback",
-  trainingJoin: (id: string) => `/api/training/${id}/join`,
-  beehiivFeed: "/api/blog",
+  memberships: `${API_URL}/api/subscriptions`,
+  applications: `${API_URL}/api/applications`,
+  events: `${API_URL}/api/events`,
+  rsvp: (id: string) => `${API_URL}/api/events/${id}/rsvp`,
+  search: `${API_URL}/api/search/query`,
+  searchFeedback: `${API_URL}/api/search/feedback`,
+  trainingJoin: (id: string) => `${API_URL}/api/training/${id}/join`,
+  beehiivFeed: `${API_URL}/api/blog`,
+  me: `${API_URL}/api/me`,
+  certifications: `${API_URL}/api/certifications`,
 };
 
 export const api = {
@@ -21,7 +24,7 @@ export const api = {
   },
   async getCurrentUser(): Promise<User> {
     if (MODE === "mock") return me;
-    const r = await fetch("/api/me", { credentials: "include" }); return r.json();
+    const r = await fetch(LIVE.me, { credentials: "include" }); return r.json();
   },
   async submitApplication(payload: Partial<Application>): Promise<{ ok: boolean; id: string }> {
     if (MODE === "mock") return { ok: true, id: "a_mock_new" };
@@ -54,6 +57,6 @@ export const api = {
   },
   async getCertifications(): Promise<Certification[]> {
     if (MODE === "mock") return certifications;
-    const r = await fetch("/api/certifications"); return r.json();
+    const r = await fetch(LIVE.certifications); return r.json();
   },
 };
