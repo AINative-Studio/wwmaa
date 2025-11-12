@@ -5,7 +5,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.backend
     container_name: wwmaa-backend
     ports:
       - "9001:8000"  # High port 9001 externally, 8000 internally
