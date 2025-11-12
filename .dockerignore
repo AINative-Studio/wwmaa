@@ -1,0 +1,71 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next
+out
+.next/cache
+
+# Cache directories
+.cache
+.next-swc-fallback
+**/.cache
+**/next-swc
+
+# Testing
+coverage
+.coverage
+.nyc_output
+*.lcov
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Strapi
+cms/node_modules
+cms/.tmp
+cms/.cache
+cms/build
+cms/.env
+cms/public/uploads
+
+# Backend
+backend/__pycache__
+backend/.pytest_cache
+backend/.mypy_cache
+backend/*.pyc
+backend/.env
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# CI/CD
+.github
+
+# Railway
+railway.json
+railway.toml
