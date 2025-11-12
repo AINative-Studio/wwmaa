@@ -197,6 +197,9 @@ class EventService:
 
             return result
 
+        except ZeroDBError:
+            # Re-raise ZeroDB errors as-is to preserve specific exception types
+            raise
         except Exception as e:
             logger.error(f"Failed to list events: {e}")
             raise ZeroDBError(f"Failed to list events: {e}")
