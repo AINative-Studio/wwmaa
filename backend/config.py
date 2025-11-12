@@ -493,24 +493,34 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         """Return CORS origins based on environment."""
+        origins = []
+
         if self.is_production:
-            return [
+            origins = [
                 "https://wwmaa.com",
                 "https://www.wwmaa.com",
-                "https://api.wwmaa.com"
+                "https://api.wwmaa.com",
+                "https://athletic-curiosity-production.up.railway.app"
             ]
         elif self.is_staging:
-            return [
+            origins = [
                 "https://staging.wwmaa.com",
                 "https://staging-api.wwmaa.com"
             ]
         else:  # development
-            return [
+            origins = [
                 "http://localhost:3000",
                 "http://localhost:8000",
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:8000"
             ]
+
+        # Always include PYTHON_BACKEND_URL if it's not localhost (for Railway/cloud deployments)
+        if self.PYTHON_BACKEND_URL and "localhost" not in self.PYTHON_BACKEND_URL and "127.0.0.1" not in self.PYTHON_BACKEND_URL:
+            if self.PYTHON_BACKEND_URL not in origins:
+                origins.append(self.PYTHON_BACKEND_URL)
+
+        return origins
 
     @property
     def log_level(self) -> str:
