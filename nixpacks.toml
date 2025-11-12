@@ -1,0 +1,21 @@
+[phases.setup]
+nixPkgs = ["nodejs_18", "npm-9_x"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "rm -rf $HOME/.cache/next-swc /root/.cache/next-swc || true",
+  "npm run build"
+]
+
+[start]
+cmd = "npm run start"
+
+# Environment variables to prevent SWC binary downloads
+[variables]
+NEXT_TELEMETRY_DISABLED = "1"
+NEXT_SKIP_NATIVE_POSTINSTALL = "1"
+# Force Next.js to skip SWC binary download
+SWC_BINARY_PATH = "skip"

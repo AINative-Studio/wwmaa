@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "rm -rf $HOME/.cache/next-swc /root/.cache/next-swc .next/cache node_modules/.cache || true",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
