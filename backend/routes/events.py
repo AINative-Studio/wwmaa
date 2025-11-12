@@ -265,6 +265,16 @@ async def list_public_events(
 
     except HTTPException:
         raise
+    except ZeroDBNotFoundError as e:
+        # Collection doesn't exist yet - return empty results
+        logger.warning(f"Events collection not found, returning empty list: {e}")
+        return {
+            "events": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "has_more": False
+        }
     except ZeroDBError as e:
         logger.error(f"Failed to list public events: {e}")
         raise HTTPException(
