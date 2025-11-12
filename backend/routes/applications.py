@@ -320,6 +320,104 @@ async def auto_approve_application(application_id: UUID, approvals_count: int) -
 # ============================================================================
 
 @router.get(
+    "",
+    response_model=List[PendingApplicationResponse],
+    summary="List applications with filters",
+    description="Get applications with optional status filtering (board members and admins only)"
+)
+async def list_applications(
+    current_user: dict = Depends(RoleChecker(allowed_roles=["admin", "board_member"])),
+    status: Optional[str] = Query(None, description="Filter by status: 'pending', 'approved', 'rejected', or specific status"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    offset: int = Query(0, ge=0, description="Number of results to skip")
+):
+    """
+    List applications with optional status filtering.
+
+    Query Parameters:
+    - status: 'pending' (submitted + under_review), 'approved', 'rejected', or specific status
+    - limit: Maximum results (1-100, default 50)
+    - offset: Pagination offset
+
+    Returns applications sorted by submission date (oldest first).
+    """
+    try:
+        query_filter = {}
+
+        if status:
+            status_lower = status.lower()
+            if status_lower == "pending":
+                query_filter["status"] = {"$in": ["submitted", "under_review"]}
+            elif status_lower == "all":
+                pass  # No filter
+            elif status_lower in ["submitted", "under_review", "approved", "rejected", "withdrawn", "draft"]:
+                query_filter["status"] = status_lower
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid status: '{status}'. Valid: 'pending', 'approved', 'rejected', 'all', or specific status"
+                )
+        else:
+            # Default: show pending
+            query_filter["status"] = {"$in": ["submitted", "under_review"]}
+
+        logger.info(f"User {current_user['email']} querying applications with filter: {query_filter}")
+
+        applications = zerodb_client.query_documents(
+            collection="applications",
+            filter=query_filter
+        )
+
+        application_responses = []
+        for app_data in applications:
+            try:
+                application = Application(**app_data)
+                approvals_count = await count_approvals(application.id)
+
+                application_responses.append(
+                    PendingApplicationResponse(
+                        id=application.id,
+                        first_name=application.first_name,
+                        last_name=application.last_name,
+                        email=application.email,
+                        status=application.status,
+                        submitted_at=application.submitted_at,
+                        disciplines=application.disciplines,
+                        experience_years=application.experience_years,
+                        current_rank=application.current_rank,
+                        school_affiliation=application.school_affiliation,
+                        motivation=application.motivation,
+                        approvals_count=approvals_count,
+                        created_at=application.created_at
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error processing application {app_data.get('id', 'unknown')}: {e}")
+                continue
+
+        application_responses.sort(key=lambda x: x.submitted_at or x.created_at)
+
+        total_count = len(application_responses)
+        paginated_results = application_responses[offset:offset + limit]
+
+        logger.info(
+            f"User {current_user['email']} retrieved {len(paginated_results)} applications "
+            f"(total: {total_count}, status: '{status or 'pending'}', offset: {offset})"
+        )
+
+        return paginated_results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing applications: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch applications"
+        )
+
+
+@router.get(
     "/pending",
     response_model=List[PendingApplicationResponse],
     summary="List pending applications",

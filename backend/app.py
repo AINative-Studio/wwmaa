@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from backend.config import get_settings
 from backend.routes import auth
+from backend.routes import profile
 from backend.routes import applications
 from backend.routes import application_submission
 from backend.routes import payments
@@ -229,6 +230,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # Register routers
 app.include_router(health.router)  # Health check endpoints (must be first for Railway)
 app.include_router(auth.router)
+app.include_router(profile.router)
 app.include_router(applications.router)
 app.include_router(application_submission.router)
 app.include_router(payments.router)
