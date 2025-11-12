@@ -593,7 +593,11 @@ class ZeroDBClient:
         result = self._handle_response(response)
 
         # Transform project API response to collection API format for backward compatibility
-        rows = result.get("rows", [])
+        # Handle both dict response ({"rows": [...]}) and list response ([...])
+        if isinstance(result, list):
+            rows = result
+        else:
+            rows = result.get("rows", [])
 
         # Apply filters client-side if provided
         if filters:
