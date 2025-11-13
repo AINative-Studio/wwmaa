@@ -1,4 +1,5 @@
 # Custom Dockerfile to avoid Railway cache issues
+# Force rebuild: 2025-11-13 12:40 PM - Clear cache to apply env vars
 FROM node:18-alpine
 
 WORKDIR /app
