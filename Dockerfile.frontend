@@ -18,11 +18,32 @@ RUN rm -rf /root/.cache/next-swc || true
 RUN rm -rf .next/cache || true
 RUN rm -rf node_modules/.cache || true
 
-# Build the application with SWC WASM (no binary download)
+# Accept build arguments from Railway
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_MODE
+ARG NEXT_PUBLIC_SITE_URL
+ARG NODE_ENV
+
+# Set environment variables for the build
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_MODE=$NEXT_PUBLIC_API_MODE
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NODE_ENV=$NODE_ENV
+
+# Build configuration
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_SWC_SKIP_DOWNLOAD=1
 ENV NEXT_USE_SWC_WASM=true
 ENV NEXT_SKIP_NATIVE_POSTINSTALL=1
+
+# Log environment variables (for debugging)
+RUN echo "🔧 Build-time environment variables:" && \
+    echo "   NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" && \
+    echo "   NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE}" && \
+    echo "   NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" && \
+    echo "   NODE_ENV=${NODE_ENV}"
+
+# Build the application
 RUN npm run build
 
 # Expose port
