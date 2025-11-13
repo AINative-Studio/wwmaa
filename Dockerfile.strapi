@@ -1,0 +1,99 @@
+# ==========================================
+# WWMAA Strapi CMS - Multi-Stage Docker Build
+# ==========================================
+# Optimized for Railway deployment with minimal image size
+# PostgreSQL database support for production environments
+
+# ==========================================
+# Stage 1: Builder
+# ==========================================
+FROM node:18-alpine as builder
+
+# Set working directory
+WORKDIR /opt/app
+
+# Install build dependencies for native modules
+RUN apk add --no-cache \
+    build-base \
+    gcc \
+    autoconf \
+    automake \
+    libtool \
+    zlib-dev \
+    libpng-dev \
+    vips-dev \
+    python3 \
+    make \
+    g++ \
+    postgresql-dev
+
+# Copy package files first for better layer caching
+COPY strapi/package*.json ./
+
+# Install dependencies with production optimizations
+RUN npm ci --only=production --ignore-scripts && \
+    npm cache clean --force
+
+# Copy application code
+COPY strapi/ .
+
+# Build Strapi admin panel
+ENV NODE_ENV=production
+RUN npm run build
+
+# ==========================================
+# Stage 2: Runtime
+# ==========================================
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /opt/app
+
+# Install runtime dependencies only
+RUN apk add --no-cache \
+    vips \
+    postgresql-client \
+    curl \
+    bash
+
+# Create non-root user for security
+RUN addgroup -g 1000 strapi && \
+    adduser -D -u 1000 -G strapi strapi && \
+    chown -R strapi:strapi /opt/app
+
+# Copy dependencies and built application from builder
+COPY --from=builder --chown=strapi:strapi /opt/app/node_modules ./node_modules
+COPY --from=builder --chown=strapi:strapi /opt/app/build ./build
+COPY --from=builder --chown=strapi:strapi /opt/app/public ./public
+COPY --from=builder --chown=strapi:strapi /opt/app/.cache ./.cache
+COPY --from=builder --chown=strapi:strapi /opt/app/package*.json ./
+
+# Copy application source files
+COPY --chown=strapi:strapi strapi/config ./config
+COPY --chown=strapi:strapi strapi/database ./database
+COPY --chown=strapi:strapi strapi/src ./src
+
+# Copy Railway startup script
+COPY --chown=strapi:strapi railway-strapi-start.sh /opt/app/railway-strapi-start.sh
+RUN chmod +x /opt/app/railway-strapi-start.sh
+
+# Create necessary directories
+RUN mkdir -p /opt/app/.tmp && \
+    chown -R strapi:strapi /opt/app/.tmp
+
+# Switch to non-root user
+USER strapi
+
+# Environment variables (overrideable at runtime)
+ENV NODE_ENV=production \
+    PORT=1337
+
+# Expose port (Railway will override with $PORT)
+EXPOSE 1337
+
+# Health check for Railway
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/_health || exit 1
+
+# Start command using Railway startup script
+CMD ["/bin/bash", "/opt/app/railway-strapi-start.sh"]

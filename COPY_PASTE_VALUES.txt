@@ -1,0 +1,56 @@
+═══════════════════════════════════════════════════════════════
+           RAILWAY BACKEND VARIABLES - COPY/PASTE
+═══════════════════════════════════════════════════════════════
+
+Add these 4 variables to Railway → WWMAA-BACKEND → Variables
+
+───────────────────────────────────────────────────────────────
+Variable 1 of 4:
+───────────────────────────────────────────────────────────────
+Name:
+ZERODB_EMAIL
+
+Value:
+admin@ainative.studio
+
+───────────────────────────────────────────────────────────────
+Variable 2 of 4:
+───────────────────────────────────────────────────────────────
+Name:
+ZERODB_PASSWORD
+
+Value:
+Admin2025!Secure
+
+───────────────────────────────────────────────────────────────
+Variable 3 of 4:
+───────────────────────────────────────────────────────────────
+Name:
+ZERODB_API_KEY
+
+Value:
+kLPiP0bzgKJ0CnNYVt1wq3qxbs2QgDeF2XwyUnxBEOM
+
+───────────────────────────────────────────────────────────────
+Variable 4 of 4:
+───────────────────────────────────────────────────────────────
+Name:
+ZERODB_API_BASE_URL
+
+Value:
+https://api.ainative.studio
+
+═══════════════════════════════════════════════════════════════
+
+INSTRUCTIONS:
+1. Go to https://railway.app
+2. Open WWMAA project → WWMAA-BACKEND service
+3. Click Variables tab
+4. For each variable above:
+   - Click "+ New Variable"
+   - Copy the Name (e.g., ZERODB_EMAIL)
+   - Copy the Value (e.g., admin@ainative.studio)
+   - Click Save
+5. Wait 2-3 minutes for auto-redeploy
+
+═══════════════════════════════════════════════════════════════

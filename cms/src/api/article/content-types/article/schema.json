@@ -1,0 +1,83 @@
+{
+  "kind": "collectionType",
+  "collectionName": "articles",
+  "info": {
+    "singularName": "article",
+    "pluralName": "articles",
+    "displayName": "Article",
+    "description": "Blog articles for WWMAA"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 255
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "excerpt": {
+      "type": "text",
+      "maxLength": 500,
+      "required": true
+    },
+    "content": {
+      "type": "richtext",
+      "required": true
+    },
+    "author": {
+      "type": "string",
+      "required": true,
+      "default": "WWMAA Team"
+    },
+    "published_at": {
+      "type": "datetime"
+    },
+    "featured_image": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": [
+        "AI & Technology",
+        "Industry News",
+        "Best Practices",
+        "Case Studies",
+        "Product Updates",
+        "Thought Leadership"
+      ],
+      "default": "AI & Technology",
+      "required": true
+    },
+    "tags": {
+      "type": "json",
+      "required": false
+    },
+    "meta_title": {
+      "type": "string",
+      "maxLength": 60
+    },
+    "meta_description": {
+      "type": "text",
+      "maxLength": 160
+    },
+    "read_time": {
+      "type": "integer",
+      "default": 5,
+      "min": 1
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

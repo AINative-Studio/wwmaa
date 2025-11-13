@@ -88,9 +88,73 @@ services:
   #   depends_on:
   #     - backend
 
+  # Strapi CMS for blog content management
+  strapi:
+    image: node:20-alpine
+    container_name: wwmaa-strapi
+    working_dir: /app
+    ports:
+      - "1337:1337"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_CLIENT=postgres
+      - DATABASE_HOST=strapi-db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=strapi
+      - DATABASE_USERNAME=strapi
+      - DATABASE_PASSWORD=${STRAPI_DATABASE_PASSWORD:-strapi_secure_password}
+      - DATABASE_SSL=false
+      - HOST=0.0.0.0
+      - PORT=1337
+      - PUBLIC_URL=${STRAPI_PUBLIC_URL:-http://localhost:1337}
+      - APP_KEYS=${STRAPI_APP_KEYS:-key1,key2,key3,key4}
+      - API_TOKEN_SALT=${STRAPI_API_TOKEN_SALT:-api_token_salt_change_me}
+      - ADMIN_JWT_SECRET=${STRAPI_ADMIN_JWT_SECRET:-admin_jwt_secret_change_me}
+      - TRANSFER_TOKEN_SALT=${STRAPI_TRANSFER_TOKEN_SALT:-transfer_token_salt_change_me}
+      - JWT_SECRET=${STRAPI_JWT_SECRET:-jwt_secret_change_me}
+    volumes:
+      - ./cms:/app
+      - strapi-uploads:/app/public/uploads
+      - /app/node_modules
+      - /app/.cache
+      - /app/build
+    command: sh -c "npm install && npm run build && npm run start"
+    networks:
+      - wwmaa-network
+    depends_on:
+      - strapi-db
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1337/_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL database for Strapi
+  strapi-db:
+    image: postgres:16-alpine
+    container_name: wwmaa-strapi-db
+    ports:
+      - "5433:5432"  # High port 5433 externally
+    environment:
+      - POSTGRES_DB=strapi
+      - POSTGRES_USER=strapi
+      - POSTGRES_PASSWORD=${STRAPI_DATABASE_PASSWORD:-strapi_secure_password}
+    volumes:
+      - strapi-db-data:/var/lib/postgresql/data
+    networks:
+      - wwmaa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strapi -d strapi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   wwmaa-network:
     driver: bridge
 
 volumes:
   redis-data:
+  strapi-db-data:
+  strapi-uploads:

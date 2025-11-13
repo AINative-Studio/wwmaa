@@ -1,0 +1,21 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.strapi",
+    "watchPatterns": [
+      "strapi/**"
+    ]
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3,
+    "healthcheckPath": "/_health",
+    "healthcheckTimeout": 180,
+    "startCommand": "/bin/bash /opt/app/railway-strapi-start.sh"
+  },
+  "regions": [
+    "us-west1"
+  ]
+}

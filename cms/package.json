@@ -1,0 +1,38 @@
+{
+  "name": "wwmaa-cms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WWMAA CMS - Strapi for blog content management",
+  "scripts": {
+    "develop": "strapi develop",
+    "start": "strapi start",
+    "build": "strapi build",
+    "strapi": "strapi",
+    "clean": "rm -rf .cache build dist node_modules"
+  },
+  "dependencies": {
+    "@strapi/strapi": "^5.30.1",
+    "@strapi/plugin-users-permissions": "^5.30.1",
+    "@strapi/plugin-cloud": "^5.30.1",
+    "better-sqlite3": "^11.8.1",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "styled-components": "^6.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5"
+  },
+  "author": {
+    "name": "WWMAA Team"
+  },
+  "strapi": {
+    "uuid": "wwmaa-cms-001"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  },
+  "license": "MIT"
+}

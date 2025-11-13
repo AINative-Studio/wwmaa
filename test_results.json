@@ -1,0 +1,77 @@
+{
+  "summary": {
+    "total": 11,
+    "passed": 5,
+    "failed": 6,
+    "pass_rate": 45.45454545454545,
+    "timestamp": "2025-11-12T13:44:18.764455"
+  },
+  "tests": [
+    {
+      "test": "Backend Health Check",
+      "passed": true,
+      "details": "Status: 200, Response time: 0.50s",
+      "timestamp": "2025-11-12T13:44:12.395287"
+    },
+    {
+      "test": "Login - Admin",
+      "passed": false,
+      "details": "Status: 500",
+      "timestamp": "2025-11-12T13:44:13.930437"
+    },
+    {
+      "test": "Login - Member",
+      "passed": false,
+      "details": "Status: 500",
+      "timestamp": "2025-11-12T13:44:14.475275"
+    },
+    {
+      "test": "Login - Board_member",
+      "passed": false,
+      "details": "Status: 500",
+      "timestamp": "2025-11-12T13:44:15.016044"
+    },
+    {
+      "test": "Login - Invalid Credentials",
+      "passed": false,
+      "details": "Status: 500 (Expected 401 or 403)",
+      "timestamp": "2025-11-12T13:44:15.637139"
+    },
+    {
+      "test": "Protected Endpoint - No Token",
+      "passed": false,
+      "details": "Status: 403 (Expected 401)",
+      "timestamp": "2025-11-12T13:44:16.153944"
+    },
+    {
+      "test": "Protected Endpoint - Invalid Token",
+      "passed": true,
+      "details": "Status: 401 (Expected 401)",
+      "timestamp": "2025-11-12T13:44:16.653426"
+    },
+    {
+      "test": "Public Endpoint /api/events/public",
+      "passed": false,
+      "details": "Status: 200, Items: 0 (Expected: >=3)",
+      "timestamp": "2025-11-12T13:44:17.370041"
+    },
+    {
+      "test": "Public Endpoint /api/subscriptions",
+      "passed": true,
+      "details": "Status: 200, Response received",
+      "timestamp": "2025-11-12T13:44:17.886428"
+    },
+    {
+      "test": "Public Endpoint /api/certifications",
+      "passed": true,
+      "details": "Status: 200, Response received",
+      "timestamp": "2025-11-12T13:44:18.337323"
+    },
+    {
+      "test": "CSRF Protection Check",
+      "passed": true,
+      "details": "Status: 403 - CSRF protection active",
+      "timestamp": "2025-11-12T13:44:18.762231"
+    }
+  ]
+}

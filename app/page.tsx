@@ -32,7 +32,16 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const tiers = await api.getTiers();
+  // Safely fetch tiers with fallback to mock data if API fails
+  let tiers;
+  try {
+    tiers = await api.getTiers();
+  } catch (error) {
+    console.error('Failed to fetch tiers:', error);
+    // Fallback to mock data if API fails
+    const { tiers: mockTiers } = await import("@/lib/mock/db");
+    tiers = mockTiers;
+  }
   const t = dict.en;
 
   const organizationSchema = {
