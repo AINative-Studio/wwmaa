@@ -3,11 +3,11 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Force WASM fallback for SWC to prevent binary download issues
-  swcMinify: true,
-  experimental: {
-    // Use WASM version of SWC instead of native binaries
-    forceSwcTransforms: true,
+  // Disable SWC to avoid corrupted binary downloads on Railway
+  // Use Babel instead (slower but more reliable)
+  swcMinify: false,
+  compiler: {
+    // This tells Next.js to use Babel instead of SWC
   },
 };
 
