@@ -23,3 +23,7 @@ cacheDirectories = []
 [variables]
 NEXT_TELEMETRY_DISABLED = "1"
 NEXT_SKIP_NATIVE_POSTINSTALL = "1"
+# Force Next.js to skip SWC download completely
+NEXT_SWC_SKIP_DOWNLOAD = "1"
+# Use WASM version instead of native binary
+NEXT_USE_SWC_WASM = "true"
