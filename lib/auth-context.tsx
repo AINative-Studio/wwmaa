@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
-export type UserRole = "student" | "instructor" | "admin";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export type UserRole = "student" | "instructor" | "admin" | "member" | "board_member";
 
 export type MembershipTier = "basic" | "premium" | "elite";
 
@@ -35,79 +37,134 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo purposes
-const MOCK_USERS: User[] = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    email: "student@demo.com",
-    role: "student",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-    membershipTier: "premium",
-    beltRank: "Blue Belt",
-    dojo: "San Francisco Dojo",
-  },
-  {
-    id: "2",
-    name: "Mike Johnson",
-    email: "instructor@demo.com",
-    role: "instructor",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike",
-    beltRank: "3rd Degree Black Belt",
-    dojo: "Los Angeles Dojo",
-  },
-  {
-    id: "3",
-    name: "Admin User",
-    email: "admin@demo.com",
-    role: "admin",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
-  },
-];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - accept any password for demo
-    const foundUser = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    try {
+      // 1. Get CSRF token
+      const csrfResponse = await fetch(`${API_URL}/api/security/csrf-token`, {
+        credentials: 'include',
+      });
 
-    if (foundUser) {
-      setUser(foundUser);
-      // In a real app, you would store the token in localStorage/cookies
-      if (typeof window !== "undefined") {
-        localStorage.setItem("auth_user", JSON.stringify(foundUser));
+      if (!csrfResponse.ok) {
+        console.error('Failed to get CSRF token');
+        return false;
       }
-      return true;
-    }
 
-    return false;
+      const { csrf_token } = await csrfResponse.json();
+
+      // 2. Login with credentials
+      const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf_token,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!loginResponse.ok) {
+        const error = await loginResponse.json();
+        console.error('Login failed:', error);
+        return false;
+      }
+
+      const data = await loginResponse.json();
+
+      // 3. Store tokens and user data
+      const userData: User = {
+        id: data.user.id,
+        name: `${data.user.first_name} ${data.user.last_name}`,
+        email: data.user.email,
+        role: data.user.role as UserRole,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+      };
+
+      setUser(userData);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth_user", JSON.stringify(userData));
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_user");
+  const logout = useCallback(async () => {
+    try {
+      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+
+      // Call logout endpoint
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear local state regardless of API call result
+      setUser(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_user");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
     }
   }, []);
 
   const register = useCallback(async (userData: RegisterData): Promise<boolean> => {
-    // Mock registration - just create a new user
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      name: userData.name,
-      email: userData.email,
-      role: userData.role,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.name}`,
-      membershipTier: userData.membershipTier,
-    };
+    try {
+      // Get CSRF token
+      const csrfResponse = await fetch(`${API_URL}/api/security/csrf-token`, {
+        credentials: 'include',
+      });
 
-    setUser(newUser);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("auth_user", JSON.stringify(newUser));
+      if (!csrfResponse.ok) {
+        console.error('Failed to get CSRF token');
+        return false;
+      }
+
+      const { csrf_token } = await csrfResponse.json();
+
+      // Register user
+      const registerResponse = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf_token,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          first_name: userData.name.split(' ')[0],
+          last_name: userData.name.split(' ').slice(1).join(' ') || userData.name.split(' ')[0],
+          terms_accepted: true,
+        }),
+      });
+
+      if (!registerResponse.ok) {
+        const error = await registerResponse.json();
+        console.error('Registration failed:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Registration error:', error);
+      return false;
     }
-
-    return true;
   }, []);
 
   // Check for stored user on mount

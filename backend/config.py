@@ -519,6 +519,7 @@ class Settings(BaseSettings):
                 "https://wwmaa.com",
                 "https://www.wwmaa.com",
                 "https://api.wwmaa.com",
+                "https://wwmaa.ainative.studio",
                 "https://athletic-curiosity-production.up.railway.app"
             ]
         elif self.is_staging:
