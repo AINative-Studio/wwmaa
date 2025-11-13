@@ -17,8 +17,11 @@ RUN rm -rf /root/.cache/next-swc || true
 RUN rm -rf .next/cache || true
 RUN rm -rf node_modules/.cache || true
 
-# Build the application
+# Build the application with SWC WASM (no binary download)
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_SWC_SKIP_DOWNLOAD=1
+ENV NEXT_USE_SWC_WASM=true
+ENV NEXT_SKIP_NATIVE_POSTINSTALL=1
 RUN npm run build
 
 # Expose port
