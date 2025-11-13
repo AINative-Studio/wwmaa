@@ -2,7 +2,9 @@ import { tiers, me, applications, events, articles, certifications, searchSample
 import { MembershipTier, User, Application, EventItem, SearchResult, Article, Certification } from "./types";
 
 const MODE = process.env.NEXT_PUBLIC_API_MODE ?? "mock";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// TEMPORARY: Hardcoded for production deployment
+// TODO: Fix Railway environment variable passing
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://athletic-curiosity-production.up.railway.app";
 
 const LIVE = {
   memberships: `${API_URL}/api/subscriptions`,
