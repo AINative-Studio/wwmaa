@@ -40,6 +40,20 @@ const roleConfig: Record<
     borderColor: "border-orange-200",
     icon: Shield,
   },
+  member: {
+    label: "Member",
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200",
+    icon: User,
+  },
+  board_member: {
+    label: "Board Member",
+    color: "text-purple-700",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200",
+    icon: Shield,
+  },
 };
 
 export function RoleBadge({
