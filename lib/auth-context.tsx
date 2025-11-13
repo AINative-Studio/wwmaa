@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// TEMPORARY: Hardcoded for production deployment
+// TODO: Fix Railway environment variable passing
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://athletic-curiosity-production.up.railway.app";
 
 export type UserRole = "student" | "instructor" | "admin" | "member" | "board_member";
 
