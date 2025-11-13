@@ -99,7 +99,11 @@ class ZeroDBSeeder:
         url = f"{self.base_url}/v1/projects/{self.project_id}/database/tables/{table_name}/rows"
         response = requests.get(url, headers=self.get_headers())
         if response.status_code == 200:
-            return response.json().get("rows", [])
+            result = response.json()
+            # Handle both list response and dict response
+            if isinstance(result, list):
+                return result
+            return result.get("rows", [])
         return []
 
     def create_tables(self):
