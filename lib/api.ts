@@ -21,24 +21,32 @@ const LIVE = {
 export const api = {
   async getTiers(): Promise<MembershipTier[]> {
     if (MODE === "mock") return tiers;
-    const r = await fetch(LIVE.memberships); return r.json();
+    const r = await fetch(LIVE.memberships);
+    if (!r.ok) throw new Error(`Failed to fetch tiers: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async getCurrentUser(): Promise<User> {
     if (MODE === "mock") return me;
-    const r = await fetch(LIVE.me, { credentials: "include" }); return r.json();
+    const r = await fetch(LIVE.me, { credentials: "include" });
+    if (!r.ok) throw new Error(`Failed to fetch user: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async submitApplication(payload: Partial<Application>): Promise<{ ok: boolean; id: string }> {
     if (MODE === "mock") return { ok: true, id: "a_mock_new" };
     const r = await fetch(LIVE.applications, { method: "POST", body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error(`Failed to submit application: ${r.status} ${r.statusText}`);
     return r.json();
   },
   async getApplications(): Promise<Application[]> {
     if (MODE === "mock") return applications;
-    const r = await fetch(`${LIVE.applications}?status=pending`); return r.json();
+    const r = await fetch(`${LIVE.applications}?status=pending`);
+    if (!r.ok) throw new Error(`Failed to fetch applications: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async getEvents(): Promise<EventItem[]> {
     if (MODE === "mock") return events;
     const r = await fetch(LIVE.events);
+    if (!r.ok) throw new Error(`Failed to fetch events: ${r.status} ${r.statusText}`);
     const data = await r.json();
     // Backend returns { events: [...], total, limit, offset, has_more }
     return data.events || [];
@@ -51,18 +59,26 @@ export const api = {
   },
   async rsvpEvent(id: string): Promise<{ ok: boolean }> {
     if (MODE === "mock") return { ok: true };
-    const r = await fetch(LIVE.rsvp(id), { method: "POST" }); return r.json();
+    const r = await fetch(LIVE.rsvp(id), { method: "POST" });
+    if (!r.ok) throw new Error(`Failed to RSVP event: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async search(q: string): Promise<SearchResult> {
     if (MODE === "mock") return { ...searchSample, id: "s_mock", latency_ms: 180, answer: searchSample.answer + ` (Q="${q}")` };
-    const r = await fetch(LIVE.search, { method:"POST", body: JSON.stringify({ q }) }); return r.json();
+    const r = await fetch(LIVE.search, { method:"POST", body: JSON.stringify({ q }) });
+    if (!r.ok) throw new Error(`Failed to search: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async getArticles(): Promise<Article[]> {
     if (MODE === "mock") return articles;
-    const r = await fetch(LIVE.beehiivFeed); return r.json();
+    const r = await fetch(LIVE.beehiivFeed);
+    if (!r.ok) throw new Error(`Failed to fetch articles: ${r.status} ${r.statusText}`);
+    return r.json();
   },
   async getCertifications(): Promise<Certification[]> {
     if (MODE === "mock") return certifications;
-    const r = await fetch(LIVE.certifications); return r.json();
+    const r = await fetch(LIVE.certifications);
+    if (!r.ok) throw new Error(`Failed to fetch certifications: ${r.status} ${r.statusText}`);
+    return r.json();
   },
 };
