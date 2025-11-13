@@ -131,6 +131,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             "/api/blog",
             "/api/blog/posts",
             "/api/newsletter/subscribe",  # Uses CORS + rate limiting
+            "/api/auth/login",  # Cross-origin: cookies don't work across domains
+            "/api/auth/register",  # Cross-origin: cookies don't work across domains
         })
 
         # Cookie configuration
