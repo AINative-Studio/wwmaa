@@ -1,0 +1,10 @@
+# Railway configuration for frontend
+
+[build]
+builder = "nixpacks"
+# Disable Docker cache to force fresh build
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm run start"
+restartPolicyType = "always"
