@@ -23,7 +23,9 @@ export const api = {
     if (MODE === "mock") return tiers;
     const r = await fetch(LIVE.memberships);
     if (!r.ok) throw new Error(`Failed to fetch tiers: ${r.status} ${r.statusText}`);
-    return r.json();
+    const data = await r.json();
+    // Backend returns {tiers: [...]} so extract the array
+    return data.tiers || data;
   },
   async getCurrentUser(): Promise<User> {
     if (MODE === "mock") return me;
@@ -79,6 +81,8 @@ export const api = {
     if (MODE === "mock") return certifications;
     const r = await fetch(LIVE.certifications);
     if (!r.ok) throw new Error(`Failed to fetch certifications: ${r.status} ${r.statusText}`);
-    return r.json();
+    const data = await r.json();
+    // Backend returns {data: [...], total: ...} so extract the array
+    return data.data || data;
   },
 };
