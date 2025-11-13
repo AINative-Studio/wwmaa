@@ -573,11 +573,13 @@ class ZeroDBClient:
 
         # Note: The ZeroDB project API may not support filters in GET requests
         # For now, we'll fetch all rows and filter client-side if needed
+        # IMPORTANT: Don't pass limit to API if we have filters - we need to filter first, then limit
         params = {}
-        if limit:
-            params["limit"] = limit
         if offset:
             params["offset"] = offset
+        # Only pass limit to API if no filters (otherwise filter first, then limit after)
+        if limit and not filters:
+            params["limit"] = limit
 
         logger.info(f"Querying table '{table_name}' with filters: {filters}")
         logger.debug(f"Request URL: {url}")
@@ -592,6 +594,10 @@ class ZeroDBClient:
 
         result = self._handle_response(response)
 
+        # DEBUG: Log raw API response
+        logger.debug(f"Raw API response type: {type(result)}")
+        logger.debug(f"Raw API response (first 500 chars): {str(result)[:500]}")
+
         # Transform project API response to collection API format for backward compatibility
         # Handle both dict response ({"rows": [...]}) and list response ([...])
         if isinstance(result, list):
@@ -599,19 +605,34 @@ class ZeroDBClient:
         else:
             rows = result.get("rows", [])
 
+        logger.debug(f"Rows extracted from response: {len(rows)} rows")
+        if rows and len(rows) > 0:
+            logger.debug(f"First row structure: {rows[0].keys() if isinstance(rows[0], dict) else type(rows[0])}")
+
         # Apply filters client-side if provided
         if filters:
+            logger.debug(f"Applying client-side filters: {filters}")
             filtered_rows = []
-            for row in rows:
+            for i, row in enumerate(rows):
                 row_data = row.get("row_data", {})
                 match = True
                 for key, value in filters.items():
+                    row_value = row_data.get(key)
+                    if i == 0:  # Log first row for debugging
+                        logger.debug(f"Row 0 - Checking {key}: row_value={repr(row_value)}, filter_value={repr(value)}, match={row_value == value}")
                     if row_data.get(key) != value:
                         match = False
                         break
                 if match:
                     filtered_rows.append(row)
+                    logger.debug(f"Row {i} matched filters: {row_data.get('email', 'N/A')}")
             rows = filtered_rows
+            logger.debug(f"After filtering: {len(rows)} rows remaining")
+
+        # Apply limit AFTER filtering (if filters were used)
+        if filters and limit and len(rows) > limit:
+            rows = rows[:limit]
+            logger.debug(f"Applied limit after filtering: {len(rows)} rows")
 
         # Convert rows to documents format
         documents = []
