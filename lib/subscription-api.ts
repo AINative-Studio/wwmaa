@@ -7,7 +7,9 @@
 
 import { SubscriptionDetails } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+// TEMPORARY: Hardcoded for production deployment
+// TODO: Fix Railway environment variable passing
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://athletic-curiosity-production.up.railway.app';
 
 /**
  * Get current user's subscription details

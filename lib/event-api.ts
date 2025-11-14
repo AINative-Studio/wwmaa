@@ -1,8 +1,10 @@
 import { EventItem, EventListResponse, EventFilters, EventSort } from "./types";
 import { events } from "./mock/db";
 
-const MODE = process.env.NEXT_PUBLIC_API_MODE ?? "mock";
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://localhost:8000";
+const MODE = process.env.NEXT_PUBLIC_API_MODE ?? "live";
+// TEMPORARY: Hardcoded for production deployment
+// TODO: Fix Railway environment variable passing
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://athletic-curiosity-production.up.railway.app";
 
 interface GetEventsParams extends EventFilters, Partial<EventSort> {
   limit?: number;

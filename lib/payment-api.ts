@@ -39,7 +39,9 @@ export interface PaymentFilters {
 }
 
 const MODE = process.env.NEXT_PUBLIC_API_MODE ?? 'mock';
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+// TEMPORARY: Hardcoded for production deployment
+// TODO: Fix Railway environment variable passing
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://athletic-curiosity-production.up.railway.app';
 
 // Mock data for development
 const mockPayments: Payment[] = [
