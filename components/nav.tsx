@@ -29,9 +29,9 @@ export function Nav() {
     if (!user) return "/dashboard";
     switch (user.role) {
       case "admin":
-        return "/admin";
+        return "/dashboard/admin";
       case "instructor":
-        return "/instructor/dashboard";
+        return "/dashboard/instructor";
       case "student":
       default:
         return "/dashboard";
