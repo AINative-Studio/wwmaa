@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const me = await api.getCurrentUser();
 
-  // Redirect admins to admin dashboard
+  // Redirect admins to admin dashboard (fixed: case-sensitive role check)
   if (me.role === 'admin' || me.role === 'superadmin') {
     redirect('/dashboard/admin');
   }
