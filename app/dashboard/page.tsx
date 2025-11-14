@@ -1,9 +1,16 @@
 import { api } from "@/lib/api";
+import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const me = await api.getCurrentUser();
+
+  // Redirect admins to admin dashboard
+  if (me.role === 'admin' || me.role === 'superadmin') {
+    redirect('/dashboard/admin');
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-bg to-white">
       <div className="mx-auto max-w-6xl px-6 py-24">

@@ -36,9 +36,9 @@ export function UserMenu() {
   const getDashboardPath = () => {
     switch (user.role) {
       case "admin":
-        return "/admin";
+        return "/dashboard/admin";
       case "instructor":
-        return "/instructor/dashboard";
+        return "/dashboard/instructor";
       case "student":
       default:
         return "/dashboard";
@@ -115,6 +115,7 @@ export function UserMenu() {
           {user.role === "admin" ? "Admin Panel" : "Dashboard"}
         </DropdownMenuItem>
 
+        {/* TODO: Implement settings page
         <DropdownMenuItem
           onClick={() => router.push("/dashboard/settings")}
           className="cursor-pointer"
@@ -122,6 +123,7 @@ export function UserMenu() {
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>
+        */}
 
         <DropdownMenuSeparator />
 

@@ -49,17 +49,8 @@ export default function LoginPage() {
     const success = await login(email, password);
 
     if (success) {
-      // Give time for user state to update
-      setTimeout(() => {
-        // Determine redirect based on email (since user state might not be updated yet)
-        if (email.toLowerCase() === 'admin@demo.com') {
-          router.push('/dashboard/admin');
-        } else if (email.toLowerCase() === 'instructor@demo.com') {
-          router.push('/dashboard/instructor');
-        } else {
-          router.push('/dashboard/student');
-        }
-      }, 100);
+      // Redirect to dashboard - role-based routing will handle admin vs user dashboard
+      router.push('/dashboard');
     } else {
       setErrors({ general: 'Invalid email or password' });
       setIsLoading(false);
