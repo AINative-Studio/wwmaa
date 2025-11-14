@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { adminApi } from "@/lib/api";
+import type { EventItem } from "@/lib/types";
 import {
   LayoutDashboard,
   Users,
@@ -271,6 +273,65 @@ export default function AdminDashboard() {
   const [filterTier, setFilterTier] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  // State for real data
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Form state for creating events
+  const [eventFormData, setEventFormData] = useState({
+    title: "",
+    description: "",
+    event_type: "seminar" as const,
+    start_date: "",
+    end_date: "",
+    location: "",
+    is_online: false,
+    capacity: "",
+    price: "",
+  });
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // Auto-clear success/error messages
+  useEffect(() => {
+    if (successMessage || error) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, error]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [eventsData, metricsData, membersData] = await Promise.all([
+        adminApi.getEvents(),
+        adminApi.getMetrics(),
+        adminApi.getMembers(),
+      ]);
+
+      setEvents(eventsData);
+      setMetrics(metricsData);
+      setMembers(membersData);
+    } catch (err: any) {
+      setError(err.message || "Failed to load dashboard data");
+      console.error("Dashboard data fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleMemberSelection = (memberId: string) => {
     setSelectedMembers(prev =>
       prev.includes(memberId)
@@ -287,16 +348,81 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredMembers = mockMembers.filter(member => {
-    const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         member.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredMembers = (members.length > 0 ? members : mockMembers).filter(member => {
+    const matchesSearch = member.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         member.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTier = filterTier === "all" || member.tier === filterTier;
     const matchesStatus = filterStatus === "all" || member.status === filterStatus;
     return matchesSearch && matchesTier && matchesStatus;
   });
 
+  // Event creation handler
+  const handleCreateEvent = async () => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      // Validate required fields
+      if (!eventFormData.title || !eventFormData.start_date || !eventFormData.end_date) {
+        setError("Please fill in all required fields");
+        setLoading(false);
+        return;
+      }
+
+      const eventData = {
+        title: eventFormData.title,
+        description: eventFormData.description || undefined,
+        event_type: eventFormData.event_type,
+        start_date: new Date(eventFormData.start_date).toISOString(),
+        end_date: new Date(eventFormData.end_date).toISOString(),
+        location: eventFormData.location || (eventFormData.is_online ? "Online" : "TBD"),
+        is_online: eventFormData.is_online,
+        capacity: eventFormData.capacity ? parseInt(eventFormData.capacity) : undefined,
+        price: eventFormData.price ? parseFloat(eventFormData.price) : undefined,
+        visibility: "public" as const,
+      };
+
+      const newEvent = await adminApi.createEvent(eventData);
+      setEvents(prev => [newEvent, ...prev]);
+      setSuccessMessage("Event created successfully!");
+      setIsAddEventOpen(false);
+
+      // Reset form
+      setEventFormData({
+        title: "",
+        description: "",
+        event_type: "seminar",
+        start_date: "",
+        end_date: "",
+        location: "",
+        is_online: false,
+        capacity: "",
+        price: "",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to create event");
+      console.error("Event creation error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-bg to-white">
+      {/* Success/Error Notifications */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-50 border border-green-200 text-green-800 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <span className="font-medium">{successMessage}</span>
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-50 border border-red-200 text-red-800 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+          <XCircle className="w-5 h-5 text-red-600" />
+          <span className="font-medium">{error}</span>
+        </div>
+      )}
+
       <div className="flex">
         {/* Sidebar */}
         <div className="w-64 bg-card border-r border-border min-h-screen sticky top-0">
@@ -369,86 +495,100 @@ export default function AdminDashboard() {
             {activeTab === "overview" && (
               <div className="space-y-6">
                 {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Total Members
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-baseline justify-between">
-                        <div className="text-3xl font-bold text-dojo-navy">248</div>
-                        <div className="flex items-center gap-1 text-success text-sm font-medium">
-                          <ArrowUpRight className="w-4 h-4" />
-                          12.5%
+                {loading && !metrics ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dojo-navy"></div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Total Members
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-3xl font-bold text-dojo-navy">
+                            {metrics?.total_members || 0}
+                          </div>
+                          <div className="flex items-center gap-1 text-success text-sm font-medium">
+                            <ArrowUpRight className="w-4 h-4" />
+                            12.5%
+                          </div>
                         </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        +28 this month
-                      </p>
-                    </CardContent>
-                  </Card>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          +28 this month
+                        </p>
+                      </CardContent>
+                    </Card>
 
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Revenue (Monthly)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-baseline justify-between">
-                        <div className="text-3xl font-bold text-dojo-navy">$42.3K</div>
-                        <div className="flex items-center gap-1 text-success text-sm font-medium">
-                          <ArrowUpRight className="w-4 h-4" />
-                          8.2%
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Revenue (Monthly)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-3xl font-bold text-dojo-navy">
+                            ${((metrics?.revenue_monthly || 0) / 1000).toFixed(1)}K
+                          </div>
+                          <div className="flex items-center gap-1 text-success text-sm font-medium">
+                            <ArrowUpRight className="w-4 h-4" />
+                            8.2%
+                          </div>
                         </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        +$3.8K from last month
-                      </p>
-                    </CardContent>
-                  </Card>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          +$3.8K from last month
+                        </p>
+                      </CardContent>
+                    </Card>
 
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Active Events
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-baseline justify-between">
-                        <div className="text-3xl font-bold text-dojo-navy">12</div>
-                        <Badge variant="outline" className="text-dojo-green border-dojo-green">
-                          Live
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        243 total registrations
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Retention Rate
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-baseline justify-between">
-                        <div className="text-3xl font-bold text-dojo-navy">94%</div>
-                        <div className="flex items-center gap-1 text-success text-sm font-medium">
-                          <ArrowUpRight className="w-4 h-4" />
-                          2.1%
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Active Events
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-3xl font-bold text-dojo-navy">
+                            {metrics?.active_events || events.length}
+                          </div>
+                          <Badge variant="outline" className="text-dojo-green border-dojo-green">
+                            Live
+                          </Badge>
                         </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Excellent performance
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {events.length} total events
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Retention Rate
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-3xl font-bold text-dojo-navy">
+                            {metrics?.retention_rate ? `${Math.round(metrics.retention_rate * 100)}%` : '94%'}
+                          </div>
+                          <div className="flex items-center gap-1 text-success text-sm font-medium">
+                            <ArrowUpRight className="w-4 h-4" />
+                            2.1%
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Excellent performance
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
                 {/* Charts Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -866,34 +1006,52 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
 
-                <Card>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Event Title</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Registrations</TableHead>
-                          <TableHead>Capacity</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {mockEvents.map((event) => (
-                          <TableRow key={event.id}>
-                            <TableCell className="font-medium">{event.title}</TableCell>
-                            <TableCell>{event.date}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{event.type}</Badge>
-                            </TableCell>
-                            <TableCell>{event.registrations}</TableCell>
-                            <TableCell>{event.capacity}</TableCell>
-                            <TableCell>
-                              <Badge variant="default">{event.status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
+                {loading && events.length === 0 ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dojo-navy"></div>
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="p-0">
+                      {events.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground">
+                          No events found. Create your first event to get started!
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Event Title</TableHead>
+                              <TableHead>Start Date</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Location</TableHead>
+                              <TableHead>Capacity</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {events.map((event) => (
+                              <TableRow key={event.id}>
+                                <TableCell className="font-medium">{event.title}</TableCell>
+                                <TableCell>
+                                  {new Date(event.start).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{event.type}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {event.location_type === 'online' ? 'Online' : event.location}
+                                </TableCell>
+                                <TableCell>
+                                  {event.max_participants || 'Unlimited'}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={event.status === 'published' ? "default" : "secondary"}>
+                                    {event.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
@@ -918,7 +1076,18 @@ export default function AdminDashboard() {
                                     Export Attendees
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-red-600">
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={async () => {
+                                      try {
+                                        await adminApi.deleteEvent(event.id);
+                                        setEvents(prev => prev.filter(e => e.id !== event.id));
+                                        setSuccessMessage("Event deleted successfully!");
+                                      } catch (err: any) {
+                                        setError(err.message || "Failed to delete event");
+                                      }
+                                    }}
+                                  >
                                     <Trash2 className="w-4 h-4 mr-2" />
                                     Delete Event
                                   </DropdownMenuItem>
@@ -929,8 +1098,10 @@ export default function AdminDashboard() {
                         ))}
                       </TableBody>
                     </Table>
-                  </CardContent>
-                </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -1233,21 +1404,26 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle>Add New Member</DialogTitle>
             <DialogDescription>
-              Enter the member details to add them to the system
+              Note: Member management endpoints are not yet implemented in the backend. This is a placeholder UI.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-800">
+                <strong>Backend TODO:</strong> Member creation endpoint needs to be implemented at /api/admin/members
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="John Smith" />
+              <Input id="name" placeholder="John Smith" disabled />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="john@example.com" />
+              <Input id="email" type="email" placeholder="john@example.com" disabled />
             </div>
             <div className="space-y-2">
               <Label htmlFor="tier">Membership Tier</Label>
-              <Select>
+              <Select disabled>
                 <SelectTrigger id="tier">
                   <SelectValue placeholder="Select tier" />
                 </SelectTrigger>
@@ -1260,15 +1436,12 @@ export default function AdminDashboard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="belt">Belt Rank</Label>
-              <Input id="belt" placeholder="White Belt" />
+              <Input id="belt" placeholder="White Belt" disabled />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddMemberOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setIsAddMemberOpen(false)}>
-              Add Member
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1319,37 +1492,123 @@ export default function AdminDashboard() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="event-title">Event Title</Label>
-              <Input id="event-title" placeholder="Summer Training Camp" />
+              <Label htmlFor="event-title">Event Title *</Label>
+              <Input
+                id="event-title"
+                placeholder="Summer Training Camp"
+                value={eventFormData.title}
+                onChange={(e) => setEventFormData(prev => ({ ...prev, title: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="event-date">Date</Label>
-              <Input id="event-date" type="date" />
+              <Label htmlFor="event-description">Description</Label>
+              <Textarea
+                id="event-description"
+                placeholder="Event description..."
+                value={eventFormData.description}
+                onChange={(e) => setEventFormData(prev => ({ ...prev, description: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="event-type">Event Type</Label>
-              <Select>
+              <Label htmlFor="event-type">Event Type *</Label>
+              <Select
+                value={eventFormData.event_type}
+                onValueChange={(value) => setEventFormData(prev => ({ ...prev, event_type: value as any }))}
+              >
                 <SelectTrigger id="event-type">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="training">Training</SelectItem>
+                  <SelectItem value="live_training">Live Training</SelectItem>
                   <SelectItem value="seminar">Seminar</SelectItem>
                   <SelectItem value="tournament">Tournament</SelectItem>
+                  <SelectItem value="certification">Certification</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Start Date *</Label>
+                <Input
+                  id="start-date"
+                  type="datetime-local"
+                  value={eventFormData.start_date}
+                  onChange={(e) => setEventFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date">End Date *</Label>
+                <Input
+                  id="end-date"
+                  type="datetime-local"
+                  value={eventFormData.end_date}
+                  onChange={(e) => setEventFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="capacity">Capacity</Label>
-              <Input id="capacity" type="number" placeholder="50" />
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                placeholder="123 Main St or Online"
+                value={eventFormData.location}
+                onChange={(e) => setEventFormData(prev => ({ ...prev, location: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="is-online"
+                checked={eventFormData.is_online}
+                onCheckedChange={(checked) => setEventFormData(prev => ({ ...prev, is_online: checked }))}
+              />
+              <Label htmlFor="is-online">Online Event</Label>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="capacity">Capacity</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  placeholder="50"
+                  value={eventFormData.capacity}
+                  onChange={(e) => setEventFormData(prev => ({ ...prev, capacity: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price">Price ($)</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  placeholder="0.00"
+                  step="0.01"
+                  value={eventFormData.price}
+                  onChange={(e) => setEventFormData(prev => ({ ...prev, price: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddEventOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddEventOpen(false);
+                setEventFormData({
+                  title: "",
+                  description: "",
+                  event_type: "seminar",
+                  start_date: "",
+                  end_date: "",
+                  location: "",
+                  is_online: false,
+                  capacity: "",
+                  price: "",
+                });
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={() => setIsAddEventOpen(false)}>
-              Create Event
+            <Button onClick={handleCreateEvent} disabled={loading}>
+              {loading ? "Creating..." : "Create Event"}
             </Button>
           </DialogFooter>
         </DialogContent>

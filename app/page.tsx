@@ -4,6 +4,7 @@ import { dict } from "@/lib/i18n";
 import { TierCard } from "@/components/cards/tier-card";
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { MembershipTier } from "@/lib/types";
 
 export const dynamic = 'force-dynamic';
 
@@ -32,15 +33,14 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  // Safely fetch tiers with fallback to mock data if API fails
-  let tiers;
+  // Fetch tiers from backend API
+  let tiers: MembershipTier[];
   try {
     tiers = await api.getTiers();
   } catch (error) {
     console.error('Failed to fetch tiers:', error);
-    // Fallback to mock data if API fails
-    const { tiers: mockTiers } = await import("@/lib/mock/db");
-    tiers = mockTiers;
+    // Return empty array on error
+    tiers = [];
   }
   const t = dict.en;
 
