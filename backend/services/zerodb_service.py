@@ -305,7 +305,11 @@ class ZeroDBClient:
             error_message = error_data.get("detail") or error_data.get("message") or str(e)
 
             if response.status_code in (401, 403):
-                logger.error(f"Authentication error: {error_message}")
+                logger.warning(f"Authentication error: {error_message} - Clearing token for re-authentication")
+                # Clear the expired/invalid token so next request will re-authenticate
+                self._jwt_token = None
+                if "Authorization" in self.headers:
+                    del self.headers["Authorization"]
                 raise ZeroDBAuthenticationError(f"Authentication failed: {error_message}")
             elif response.status_code == 404:
                 logger.warning(f"Resource not found: {error_message}")
@@ -568,31 +572,45 @@ class ZeroDBClient:
             resolved on the ZeroDB platform. The implementation follows the correct API
             specification from the OpenAPI docs.
         """
-        self._ensure_authenticated()
-        url = self._get_project_url("database", "tables", table_name, "rows")
+        # Retry logic: if authentication fails, re-authenticate and retry once
+        max_retries = 1
+        for attempt in range(max_retries + 1):
+            try:
+                self._ensure_authenticated()
+                url = self._get_project_url("database", "tables", table_name, "rows")
 
-        # Note: The ZeroDB project API may not support filters in GET requests
-        # For now, we'll fetch all rows and filter client-side if needed
-        # IMPORTANT: Don't pass limit to API if we have filters - we need to filter first, then limit
-        params = {}
-        if offset:
-            params["offset"] = offset
-        # Only pass limit to API if no filters (otherwise filter first, then limit after)
-        if limit and not filters:
-            params["limit"] = limit
+                # Note: The ZeroDB project API may not support filters in GET requests
+                # For now, we'll fetch all rows and filter client-side if needed
+                # IMPORTANT: Don't pass limit to API if we have filters - we need to filter first, then limit
+                params = {}
+                if offset:
+                    params["offset"] = offset
+                # Only pass limit to API if no filters (otherwise filter first, then limit after)
+                if limit and not filters:
+                    params["limit"] = limit
 
-        logger.info(f"Querying table '{table_name}' with filters: {filters}")
-        logger.debug(f"Request URL: {url}")
-        logger.debug(f"Request params: {params}")
+                logger.info(f"Querying table '{table_name}' with filters: {filters} (attempt {attempt + 1})")
+                logger.debug(f"Request URL: {url}")
+                logger.debug(f"Request params: {params}")
 
-        response = self.session.get(
-            url,
-            params=params,
-            headers=self.headers,
-            timeout=self.timeout
-        )
+                response = self.session.get(
+                    url,
+                    params=params,
+                    headers=self.headers,
+                    timeout=self.timeout
+                )
 
-        result = self._handle_response(response)
+                result = self._handle_response(response)
+                break  # Success, exit retry loop
+
+            except ZeroDBAuthenticationError as e:
+                if attempt < max_retries:
+                    logger.info(f"Authentication failed, retrying with fresh token (attempt {attempt + 1}/{max_retries + 1})")
+                    # Token was already cleared in _handle_response, next iteration will re-authenticate
+                    continue
+                else:
+                    logger.error(f"Authentication failed after {max_retries + 1} attempts")
+                    raise
 
         # DEBUG: Log raw API response
         logger.debug(f"Raw API response type: {type(result)}")
