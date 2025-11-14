@@ -1,10 +1,28 @@
-import { api } from "@/lib/api";
 import { redirect } from "next/navigation";
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://athletic-curiosity-production.up.railway.app";
+
 export default async function DashboardPage() {
-  const me = await api.getCurrentUser();
+  // Get cookies from the request
+  const cookieStore = cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
+  // Fetch user data with auth cookie
+  const response = await fetch(`${API_URL}/api/me`, {
+    headers: {
+      'Cookie': `access_token=${accessToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    redirect('/login');
+  }
+
+  const me = await response.json();
 
   // Redirect admins to admin dashboard (fixed: case-sensitive role check)
   if (me.role === 'admin' || me.role === 'superadmin') {
