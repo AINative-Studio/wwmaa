@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         description="ZeroDB project ID for project-based API access"
     )
 
+    ZERODB_JWT_TOKEN: str = Field(
+        default="",
+        description="ZeroDB JWT authentication token for embedding API access (required for embeddings)"
+    )
+
     # ==========================================
     # JWT Configuration (REQUIRED)
     # ==========================================
@@ -383,6 +388,11 @@ class Settings(BaseSettings):
     SECURITY_HEADERS_ENABLED: bool = Field(
         default=True,
         description="Enable security headers middleware"
+    )
+
+    CSRF_PROTECTION_ENABLED: bool = Field(
+        default=True,
+        description="Enable CSRF protection middleware"
     )
 
     CSP_REPORT_ONLY: bool = Field(

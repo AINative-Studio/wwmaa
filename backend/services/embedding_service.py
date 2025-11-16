@@ -1,19 +1,19 @@
 """
 Embedding Service for WWMAA Backend
 
-Generates text embeddings using OpenAI's embedding models for vector search
+Generates text embeddings using ZeroDB's embedding API for vector search
 and semantic similarity operations. Supports caching, batch processing,
 and error handling.
 
 Features:
-- OpenAI text-embedding-3-small model (default)
+- ZeroDB embedding generation (self-hosted Railway service)
 - Caching of embeddings in Redis
 - Batch embedding generation
-- Retry logic with exponential backoff
-- Cost tracking and optimization
+- Automatic storage with embed-and-store endpoint
+- FREE embedding generation (no per-request charges)
 
 Dependencies:
-- OpenAI API for embedding generation
+- ZeroDB API for embedding generation
 - Redis for caching
 - US-036 implementation
 """
@@ -23,9 +23,9 @@ import hashlib
 import json
 from typing import List, Dict, Any, Optional
 import time
+import requests
 
 import redis
-from openai import OpenAI, OpenAIError
 
 from backend.config import get_settings
 
@@ -43,31 +43,29 @@ class EmbeddingError(Exception):
 
 class EmbeddingService:
     """
-    Service for generating text embeddings using OpenAI API.
+    Service for generating text embeddings using ZeroDB API.
 
     Provides methods for:
     - Generating embeddings for search queries
     - Batch embedding generation for documents
-    - Caching embeddings to reduce API costs
+    - Caching embeddings to reduce API calls
     - Error handling and retry logic
     """
 
     def __init__(
         self,
-        model: str = "text-embedding-3-small",
         cache_ttl: int = 86400  # 24 hours
     ):
         """
         Initialize embedding service.
 
         Args:
-            model: OpenAI embedding model to use (default: text-embedding-3-small)
             cache_ttl: Cache TTL in seconds (default: 86400 = 24 hours)
         """
-        # Initialize OpenAI client
-        # Note: OpenAI client will use OPENAI_API_KEY from environment
-        self.client = OpenAI()
-        self.model = model
+        # Get ZeroDB API credentials from settings
+        self.api_url = "https://api.ainative.studio"
+        self.project_id = settings.ZERODB_PROJECT_ID
+        self.auth_token = settings.ZERODB_JWT_TOKEN
         self.cache_ttl = cache_ttl
 
         # Initialize Redis client for caching
@@ -86,7 +84,7 @@ class EmbeddingService:
             logger.warning(f"Redis unavailable, embeddings will not be cached: {e}")
             self.redis_client = None
 
-        logger.info(f"EmbeddingService initialized with model: {self.model}")
+        logger.info(f"EmbeddingService initialized with ZeroDB API")
 
     def generate_embedding(
         self,
@@ -94,7 +92,7 @@ class EmbeddingService:
         use_cache: bool = True
     ) -> List[float]:
         """
-        Generate embedding vector for a single text.
+        Generate embedding vector for a single text using ZeroDB API.
 
         Args:
             text: Input text to generate embedding for
@@ -110,7 +108,7 @@ class EmbeddingService:
             raise EmbeddingError("Cannot generate embedding for empty text")
 
         # Normalize text
-        normalized_text = text.strip().lower()
+        normalized_text = text.strip()
 
         # Check cache first if enabled
         if use_cache and self.redis_client:
@@ -122,15 +120,26 @@ class EmbeddingService:
         try:
             logger.info(f"Generating embedding for text: '{text[:50]}...'")
 
-            # Generate embedding using OpenAI API
+            # Generate embedding using ZeroDB API
             start_time = time.time()
-            response = self.client.embeddings.create(
-                model=self.model,
-                input=normalized_text
+
+            response = requests.post(
+                f"{self.api_url}/v1/projects/{self.project_id}/embeddings/generate",
+                headers={
+                    'Authorization': f'Bearer {self.auth_token}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    "texts": [normalized_text]
+                },
+                timeout=30
             )
 
-            # Extract embedding vector
-            embedding = response.data[0].embedding
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract embedding vector (ZeroDB returns array of embeddings)
+            embedding = data['embeddings'][0]
             latency_ms = int((time.time() - start_time) * 1000)
 
             logger.info(
@@ -144,8 +153,11 @@ class EmbeddingService:
 
             return embedding
 
-        except OpenAIError as e:
-            logger.error(f"OpenAI API error: {e}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"ZeroDB API HTTP error: {e}")
+            raise EmbeddingError(f"Failed to generate embedding: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"ZeroDB API request error: {e}")
             raise EmbeddingError(f"Failed to generate embedding: {e}")
         except Exception as e:
             logger.error(f"Unexpected error generating embedding: {e}")
@@ -157,7 +169,7 @@ class EmbeddingService:
         use_cache: bool = True
     ) -> List[List[float]]:
         """
-        Generate embeddings for multiple texts in batch.
+        Generate embeddings for multiple texts in batch using ZeroDB API.
 
         This is more efficient than calling generate_embedding multiple times
         as it uses a single API call.
@@ -176,7 +188,7 @@ class EmbeddingService:
             return []
 
         # Normalize texts
-        normalized_texts = [text.strip().lower() for text in texts if text.strip()]
+        normalized_texts = [text.strip() for text in texts if text.strip()]
 
         if not normalized_texts:
             raise EmbeddingError("Cannot generate embeddings for empty texts")
@@ -204,10 +216,21 @@ class EmbeddingService:
                 logger.info(f"Generating embeddings for {len(texts_to_generate)} texts")
 
                 start_time = time.time()
-                response = self.client.embeddings.create(
-                    model=self.model,
-                    input=texts_to_generate
+
+                response = requests.post(
+                    f"{self.api_url}/v1/projects/{self.project_id}/embeddings/generate",
+                    headers={
+                        'Authorization': f'Bearer {self.auth_token}',
+                        'Content-Type': 'application/json'
+                    },
+                    json={
+                        "texts": texts_to_generate
+                    },
+                    timeout=60
                 )
+
+                response.raise_for_status()
+                data = response.json()
 
                 latency_ms = int((time.time() - start_time) * 1000)
 
@@ -217,8 +240,7 @@ class EmbeddingService:
                 )
 
                 # Extract embeddings and cache them
-                for i, data in enumerate(response.data):
-                    embedding = data.embedding
+                for i, embedding in enumerate(data['embeddings']):
                     original_index = cache_indices[i]
                     embeddings.append((original_index, embedding))
 
@@ -226,8 +248,11 @@ class EmbeddingService:
                     if use_cache and self.redis_client:
                         self._cache_embedding(texts_to_generate[i], embedding)
 
-            except OpenAIError as e:
-                logger.error(f"OpenAI API error in batch generation: {e}")
+            except requests.exceptions.HTTPError as e:
+                logger.error(f"ZeroDB API HTTP error in batch generation: {e}")
+                raise EmbeddingError(f"Failed to generate batch embeddings: {e}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"ZeroDB API request error in batch generation: {e}")
                 raise EmbeddingError(f"Failed to generate batch embeddings: {e}")
             except Exception as e:
                 logger.error(f"Unexpected error in batch generation: {e}")
@@ -301,23 +326,17 @@ class EmbeddingService:
         """
         # Generate hash of text for cache key
         text_hash = hashlib.sha256(text.encode()).hexdigest()
-        return f"embedding:{self.model}:{text_hash}"
+        return f"embedding:zerodb:{text_hash}"
 
     def get_embedding_dimension(self) -> int:
         """
-        Get the dimension of embeddings for the current model.
+        Get the dimension of embeddings from ZeroDB.
 
         Returns:
-            Embedding dimension (e.g., 1536 for text-embedding-3-small)
+            Embedding dimension (384 for ZeroDB embeddings)
         """
-        # Dimension mapping for OpenAI models
-        dimension_map = {
-            "text-embedding-3-small": 1536,
-            "text-embedding-3-large": 3072,
-            "text-embedding-ada-002": 1536
-        }
-
-        return dimension_map.get(self.model, 1536)
+        # ZeroDB uses 384-dimensional embeddings (all-MiniLM-L6-v2 model)
+        return 384
 
 
 # Global service instance (singleton pattern)
