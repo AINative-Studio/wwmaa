@@ -1195,6 +1195,178 @@ class EmailService:
             reapplication_date=None
         )
 
+    def send_board_member_new_application_notification(
+        self,
+        email: str,
+        board_member_name: str,
+        applicant_name: str,
+        applicant_email: str,
+        martial_arts_style: str,
+        years_experience: int
+    ) -> Dict[str, Any]:
+        """
+        Send notification to board member when new application submitted
+
+        Args:
+            email: Board member's email address
+            board_member_name: Board member's name
+            applicant_name: Applicant's full name
+            applicant_email: Applicant's email
+            martial_arts_style: Applicant's martial arts style
+            years_experience: Years of experience
+
+        Returns:
+            Postmark API response
+
+        Raises:
+            EmailSendError: If email sending fails
+        """
+        frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+        dashboard_url = f"{frontend_url}/dashboard/board"
+
+        subject = "New Membership Application - Action Required"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    background-color: #f9f9f9;
+                    padding: 30px;
+                    border-radius: 0 0 5px 5px;
+                }}
+                .button {{
+                    display: inline-block;
+                    background-color: #8B0000;
+                    color: white;
+                    padding: 12px 30px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }}
+                .info {{
+                    background-color: #d1ecf1;
+                    border-left: 4px solid #17a2b8;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+                .alert {{
+                    background-color: #fff3cd;
+                    border-left: 4px solid #ffc107;
+                    padding: 15px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>New Application Submitted</h1>
+            </div>
+            <div class="content">
+                <h2>Hello, {board_member_name}</h2>
+
+                <div class="alert">
+                    <strong>Action Required:</strong> A new membership application needs your review.
+                </div>
+
+                <p>A new member has applied to join the Women's Martial Arts Association of America and requires board approval.</p>
+
+                <div class="info">
+                    <h3 style="margin-top: 0;">Applicant Information:</h3>
+                    <ul style="margin-bottom: 0;">
+                        <li><strong>Name:</strong> {applicant_name}</li>
+                        <li><strong>Email:</strong> {applicant_email}</li>
+                        <li><strong>Martial Arts Style:</strong> {martial_arts_style}</li>
+                        <li><strong>Years of Experience:</strong> {years_experience}</li>
+                    </ul>
+                </div>
+
+                <p><strong>Required Action:</strong></p>
+                <p>This application requires approval from 2 board members. Please review the full application and cast your vote (approve or reject) in the Board Member Dashboard.</p>
+
+                <div style="text-align: center;">
+                    <a href="{dashboard_url}" class="button">Review Application</a>
+                </div>
+
+                <p><strong>Timeline:</strong> Applications should be reviewed within 5 business days to ensure a prompt response to applicants.</p>
+
+                <p>If you have any questions about this application or the review process, please contact the Membership Committee.</p>
+            </div>
+            <div class="footer">
+                <p>Women's Martial Arts Association of America</p>
+                <p>Board Member Portal</p>
+                <p>This is an automated message, please do not reply to this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        New Application Submitted
+
+        Hello, {board_member_name}
+
+        ACTION REQUIRED: A new membership application needs your review.
+
+        Applicant Information:
+        - Name: {applicant_name}
+        - Email: {applicant_email}
+        - Martial Arts Style: {martial_arts_style}
+        - Years of Experience: {years_experience}
+
+        Required Action:
+        This application requires approval from 2 board members. Please review the full application and cast your vote in the Board Member Dashboard.
+
+        Review Application: {dashboard_url}
+
+        Timeline: Applications should be reviewed within 5 business days.
+
+        ---
+        Women's Martial Arts Association of America
+        Board Member Portal
+        This is an automated message, please do not reply to this email.
+        """
+
+        return self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            tag="board-new-application",
+            metadata={
+                "board_member_email": email,
+                "board_member_name": board_member_name,
+                "applicant_name": applicant_name,
+                "applicant_email": applicant_email
+            }
+        )
+
     def send_application_info_request_email(
         self,
         email: str,

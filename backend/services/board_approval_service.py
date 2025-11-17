@@ -29,9 +29,12 @@ from backend.models.schemas import (
     Approval,
     ApplicationStatus,
     ApprovalStatus,
-    ApprovalAction
+    ApprovalAction,
+    User,
+    UserRole
 )
 from backend.services.zerodb_service import get_zerodb_client, ZeroDBError
+from backend.services.email_service import get_email_service
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -120,6 +123,9 @@ class BoardApprovalService:
                 f"Application {application_id} submitted for board review. "
                 f"Created {len(board_member_ids)} pending approvals."
             )
+
+            # Send email notifications to all board members
+            self._notify_board_members_new_application(application, board_member_ids)
 
             return application
 
@@ -259,6 +265,14 @@ class BoardApprovalService:
         self._save_approval(approval)
         self._save_application(application)
 
+        # Send email notifications based on approval status
+        if application.approval_count == 1:
+            # First approval - notify applicant
+            self._notify_applicant_first_approval(application, board_member_id)
+        elif fully_approved:
+            # Fully approved - notify applicant
+            self._notify_applicant_fully_approved(application)
+
         return {
             "application_id": str(application.id),
             "vote": "APPROVED",
@@ -310,6 +324,9 @@ class BoardApprovalService:
         # Save both records
         self._save_approval(approval)
         self._save_application(application)
+
+        # Send rejection email to applicant
+        self._notify_applicant_rejection(application, notes)
 
         return {
             "application_id": str(application.id),
@@ -434,6 +451,160 @@ class BoardApprovalService:
         except Exception as e:
             logger.error(f"Failed to get board member stats: {e}")
             raise BoardApprovalError(f"Failed to get stats: {e}")
+
+    def _notify_board_members_new_application(
+        self,
+        application: Application,
+        board_member_ids: List[UUID]
+    ):
+        """
+        Send email notifications to all board members about new application.
+
+        Args:
+            application: The application being submitted
+            board_member_ids: List of board member IDs to notify
+        """
+        try:
+            email_service = get_email_service()
+
+            # Fetch all board members
+            for board_member_id in board_member_ids:
+                try:
+                    # Get board member user record
+                    user_result = self.db_client.query_table(
+                        table_name="users",
+                        filter={"id": str(board_member_id)}
+                    )
+
+                    user_rows = user_result.get("rows", [])
+                    if not user_rows:
+                        logger.warning(f"Board member {board_member_id} not found")
+                        continue
+
+                    user = User(**user_rows[0])
+
+                    # Get board member profile for name
+                    profile_name = user.email.split("@")[0]  # Default to email username
+                    if user.profile_id:
+                        try:
+                            profile_result = self.db_client.query_table(
+                                table_name="profiles",
+                                filter={"id": str(user.profile_id)}
+                            )
+                            profile_rows = profile_result.get("rows", [])
+                            if profile_rows:
+                                profile = profile_rows[0]
+                                profile_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip() or profile_name
+                        except Exception as e:
+                            logger.warning(f"Could not fetch profile for board member {board_member_id}: {e}")
+
+                    # Send notification email
+                    email_service.send_board_member_new_application_notification(
+                        email=user.email,
+                        board_member_name=profile_name,
+                        applicant_name=f"{application.first_name} {application.last_name}",
+                        applicant_email=application.email,
+                        martial_arts_style=application.martial_arts_style or "Not specified",
+                        years_experience=application.years_experience or 0
+                    )
+
+                    logger.info(f"Sent new application notification to board member {user.email}")
+
+                except Exception as e:
+                    logger.warning(f"Failed to send email to board member {board_member_id}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send board member notifications: {e}")
+
+    def _notify_applicant_first_approval(
+        self,
+        application: Application,
+        approver_id: UUID
+    ):
+        """
+        Send email to applicant when first approval is received.
+
+        Args:
+            application: The application that received approval
+            approver_id: ID of the approving board member
+        """
+        try:
+            email_service = get_email_service()
+
+            # Get approver info
+            approver_name = "A board member"
+            try:
+                user_result = self.db_client.query_table(
+                    table_name="users",
+                    filter={"id": str(approver_id)}
+                )
+                user_rows = user_result.get("rows", [])
+                if user_rows:
+                    user = User(**user_rows[0])
+                    approver_name = user.email.split("@")[0]
+            except Exception as e:
+                logger.warning(f"Could not fetch approver info: {e}")
+
+            # Send first approval email
+            email_service.send_application_first_approval_email(
+                email=application.email,
+                applicant_name=f"{application.first_name} {application.last_name}",
+                approver_name=approver_name,
+                approvals_count=application.approval_count
+            )
+
+            logger.info(f"Sent first approval email to {application.email}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send first approval email: {e}")
+
+    def _notify_applicant_fully_approved(self, application: Application):
+        """
+        Send email to applicant when application is fully approved.
+
+        Args:
+            application: The fully approved application
+        """
+        try:
+            email_service = get_email_service()
+
+            email_service.send_application_fully_approved_email(
+                email=application.email,
+                applicant_name=f"{application.first_name} {application.last_name}"
+            )
+
+            logger.info(f"Sent fully approved email to {application.email}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send fully approved email: {e}")
+
+    def _notify_applicant_rejection(
+        self,
+        application: Application,
+        rejection_reason: Optional[str]
+    ):
+        """
+        Send email to applicant when application is rejected.
+
+        Args:
+            application: The rejected application
+            rejection_reason: Reason for rejection from board member notes
+        """
+        try:
+            email_service = get_email_service()
+
+            reason = rejection_reason or "Your application did not meet the current membership criteria."
+
+            email_service.send_application_rejected_email(
+                email=application.email,
+                applicant_name=f"{application.first_name} {application.last_name}",
+                rejection_reason=reason
+            )
+
+            logger.info(f"Sent rejection email to {application.email}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send rejection email: {e}")
 
     def _get_application(self, application_id: UUID) -> Application:
         """Get application from database"""
