@@ -267,6 +267,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
+  const [isDeleteMemberOpen, setIsDeleteMemberOpen] = useState(false);
   const [isAddInstructorOpen, setIsAddInstructorOpen] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isEditTierOpen, setIsEditTierOpen] = useState(false);
@@ -281,6 +283,10 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Member being edited or deleted
+  const [currentMember, setCurrentMember] = useState<any | null>(null);
+  const [memberActionLoading, setMemberActionLoading] = useState(false);
+
   // Form state for creating events
   const [eventFormData, setEventFormData] = useState({
     title: "",
@@ -292,6 +298,17 @@ export default function AdminDashboard() {
     is_online: false,
     capacity: "",
     price: "",
+  });
+
+  // Form state for member add/edit
+  const [memberFormData, setMemberFormData] = useState({
+    email: "",
+    first_name: "",
+    last_name: "",
+    password: "",
+    role: "member",
+    is_active: true,
+    phone: "",
   });
 
   // Fetch data on mount
@@ -318,18 +335,151 @@ export default function AdminDashboard() {
       const [eventsData, metricsData, membersData] = await Promise.all([
         adminApi.getEvents(),
         adminApi.getMetrics(),
-        adminApi.getMembers(),
+        adminApi.getMembers({ limit: 100 }),
       ]);
 
       setEvents(eventsData);
       setMetrics(metricsData);
-      setMembers(membersData);
+      setMembers(membersData.members || []);
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard data");
       console.error("Dashboard data fetch error:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Member CRUD handlers
+  const handleAddMember = async () => {
+    try {
+      setError(null);
+      setMemberActionLoading(true);
+
+      // Validate required fields
+      if (!memberFormData.email || !memberFormData.first_name || !memberFormData.last_name || !memberFormData.password) {
+        setError("Please fill in all required fields");
+        setMemberActionLoading(false);
+        return;
+      }
+
+      const newMember = await adminApi.createMember(memberFormData);
+      setMembers(prev => [newMember, ...prev]);
+      setSuccessMessage("Member created successfully!");
+      setIsAddMemberOpen(false);
+
+      // Reset form
+      setMemberFormData({
+        email: "",
+        first_name: "",
+        last_name: "",
+        password: "",
+        role: "member",
+        is_active: true,
+        phone: "",
+      });
+
+      // Refresh members list
+      await fetchDashboardData();
+    } catch (err: any) {
+      setError(err.message || "Failed to create member");
+      console.error("Member creation error:", err);
+    } finally {
+      setMemberActionLoading(false);
+    }
+  };
+
+  const handleEditMember = async () => {
+    try {
+      setError(null);
+      setMemberActionLoading(true);
+
+      if (!currentMember) {
+        setError("No member selected");
+        setMemberActionLoading(false);
+        return;
+      }
+
+      // Only send changed fields
+      const updateData: any = {};
+      if (memberFormData.email !== currentMember.email) updateData.email = memberFormData.email;
+      if (memberFormData.first_name !== currentMember.first_name) updateData.first_name = memberFormData.first_name;
+      if (memberFormData.last_name !== currentMember.last_name) updateData.last_name = memberFormData.last_name;
+      if (memberFormData.role !== currentMember.role) updateData.role = memberFormData.role;
+      if (memberFormData.is_active !== currentMember.is_active) updateData.is_active = memberFormData.is_active;
+      if (memberFormData.phone !== currentMember.phone) updateData.phone = memberFormData.phone;
+      if (memberFormData.password) updateData.password = memberFormData.password;
+
+      const updatedMember = await adminApi.updateMember(currentMember.id, updateData);
+      setMembers(prev => prev.map(m => m.id === currentMember.id ? updatedMember : m));
+      setSuccessMessage("Member updated successfully!");
+      setIsEditMemberOpen(false);
+      setCurrentMember(null);
+
+      // Reset form
+      setMemberFormData({
+        email: "",
+        first_name: "",
+        last_name: "",
+        password: "",
+        role: "member",
+        is_active: true,
+        phone: "",
+      });
+
+      // Refresh members list
+      await fetchDashboardData();
+    } catch (err: any) {
+      setError(err.message || "Failed to update member");
+      console.error("Member update error:", err);
+    } finally {
+      setMemberActionLoading(false);
+    }
+  };
+
+  const handleDeleteMember = async () => {
+    try {
+      setError(null);
+      setMemberActionLoading(true);
+
+      if (!currentMember) {
+        setError("No member selected");
+        setMemberActionLoading(false);
+        return;
+      }
+
+      await adminApi.deleteMember(currentMember.id);
+      setMembers(prev => prev.filter(m => m.id !== currentMember.id));
+      setSuccessMessage("Member deleted successfully!");
+      setIsDeleteMemberOpen(false);
+      setCurrentMember(null);
+
+      // Refresh members list
+      await fetchDashboardData();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete member");
+      console.error("Member deletion error:", err);
+    } finally {
+      setMemberActionLoading(false);
+    }
+  };
+
+  const openEditMemberModal = (member: any) => {
+    setCurrentMember(member);
+    setMemberFormData({
+      email: member.email || "",
+      first_name: member.first_name || "",
+      last_name: member.last_name || "",
+      password: "",
+      role: member.role || "member",
+      is_active: member.is_active !== undefined ? member.is_active : true,
+      phone: member.phone || "",
+    });
+    setIsEditMemberOpen(true);
+  };
+
+  const openDeleteMemberModal = (member: any) => {
+    setCurrentMember(member);
+    setIsDeleteMemberOpen(true);
   };
 
   const toggleMemberSelection = (memberId: string) => {
@@ -434,17 +584,23 @@ export default function AdminDashboard() {
           <ScrollArea className="h-[calc(100vh-120px)]">
             <nav className="space-y-1 px-3">
               {[
-                { id: "overview", icon: LayoutDashboard, label: "Overview" },
-                { id: "members", icon: Users, label: "Members" },
-                { id: "instructors", icon: GraduationCap, label: "Instructors" },
-                { id: "events", icon: Calendar, label: "Events" },
-                { id: "analytics", icon: TrendingUp, label: "Analytics" },
-                { id: "content", icon: FileText, label: "Content Management" },
-                { id: "settings", icon: Settings, label: "Settings" },
+                { id: "overview", icon: LayoutDashboard, label: "Overview", route: null },
+                { id: "members", icon: Users, label: "Members", route: "/dashboard/admin/members" },
+                { id: "instructors", icon: GraduationCap, label: "Instructors", route: null },
+                { id: "events", icon: Calendar, label: "Events", route: null },
+                { id: "analytics", icon: TrendingUp, label: "Analytics", route: null },
+                { id: "content", icon: FileText, label: "Content Management", route: null },
+                { id: "settings", icon: Settings, label: "Settings", route: null },
               ].map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (item.route) {
+                      window.location.href = item.route;
+                    } else {
+                      setActiveTab(item.id);
+                    }
+                  }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === item.id
                       ? "bg-dojo-navy text-white"
@@ -894,7 +1050,7 @@ export default function AdminDashboard() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openEditMemberModal(member)}>
                                     <Edit className="w-4 h-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
@@ -907,7 +1063,10 @@ export default function AdminDashboard() {
                                     <UserX className="w-4 h-4 mr-2" />
                                     Suspend
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600">
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => openDeleteMemberModal(member)}
+                                  >
                                     <Trash2 className="w-4 h-4 mr-2" />
                                     Delete
                                   </DropdownMenuItem>
@@ -1400,48 +1559,281 @@ export default function AdminDashboard() {
 
       {/* Add Member Dialog */}
       <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Member</DialogTitle>
             <DialogDescription>
-              Note: Member management endpoints are not yet implemented in the backend. This is a placeholder UI.
+              Create a new member account with user credentials
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-sm text-amber-800">
-                <strong>Backend TODO:</strong> Member creation endpoint needs to be implemented at /api/admin/members
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-first-name">First Name *</Label>
+                <Input
+                  id="add-first-name"
+                  placeholder="John"
+                  value={memberFormData.first_name}
+                  onChange={(e) => setMemberFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-last-name">Last Name *</Label>
+                <Input
+                  id="add-last-name"
+                  placeholder="Smith"
+                  value={memberFormData.last_name}
+                  onChange={(e) => setMemberFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="John Smith" disabled />
+              <Label htmlFor="add-email">Email *</Label>
+              <Input
+                id="add-email"
+                type="email"
+                placeholder="john.smith@example.com"
+                value={memberFormData.email}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="john@example.com" disabled />
+              <Label htmlFor="add-password">Password *</Label>
+              <Input
+                id="add-password"
+                type="password"
+                placeholder="Min. 8 characters"
+                value={memberFormData.password}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, password: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tier">Membership Tier</Label>
-              <Select disabled>
-                <SelectTrigger id="tier">
-                  <SelectValue placeholder="Select tier" />
+              <Label htmlFor="add-phone">Phone</Label>
+              <Input
+                id="add-phone"
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                value={memberFormData.phone}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-role">Role</Label>
+              <Select
+                value={memberFormData.role}
+                onValueChange={(value) => setMemberFormData(prev => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger id="add-role">
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="basic">Basic</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
                   <SelectItem value="instructor">Instructor</SelectItem>
+                  <SelectItem value="board_member">Board Member</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="belt">Belt Rank</Label>
-              <Input id="belt" placeholder="White Belt" disabled />
+            <div className="flex items-center gap-2">
+              <Switch
+                id="add-is-active"
+                checked={memberFormData.is_active}
+                onCheckedChange={(checked) => setMemberFormData(prev => ({ ...prev, is_active: checked }))}
+              />
+              <Label htmlFor="add-is-active">Active Account</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddMemberOpen(false)}>
-              Close
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddMemberOpen(false);
+                setMemberFormData({
+                  email: "",
+                  first_name: "",
+                  last_name: "",
+                  password: "",
+                  role: "member",
+                  is_active: true,
+                  phone: "",
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddMember} disabled={memberActionLoading}>
+              {memberActionLoading ? "Creating..." : "Create Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={isEditMemberOpen} onOpenChange={setIsEditMemberOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Member</DialogTitle>
+            <DialogDescription>
+              Update member information and account settings
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-first-name">First Name</Label>
+                <Input
+                  id="edit-first-name"
+                  placeholder="John"
+                  value={memberFormData.first_name}
+                  onChange={(e) => setMemberFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-last-name">Last Name</Label>
+                <Input
+                  id="edit-last-name"
+                  placeholder="Smith"
+                  value={memberFormData.last_name}
+                  onChange={(e) => setMemberFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                placeholder="john.smith@example.com"
+                value={memberFormData.email}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">New Password (optional)</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                placeholder="Leave blank to keep current password"
+                value={memberFormData.password}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                value={memberFormData.phone}
+                onChange={(e) => setMemberFormData(prev => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-role">Role</Label>
+              <Select
+                value={memberFormData.role}
+                onValueChange={(value) => setMemberFormData(prev => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger id="edit-role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="instructor">Instructor</SelectItem>
+                  <SelectItem value="board_member">Board Member</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="edit-is-active"
+                checked={memberFormData.is_active}
+                onCheckedChange={(checked) => setMemberFormData(prev => ({ ...prev, is_active: checked }))}
+              />
+              <Label htmlFor="edit-is-active">Active Account</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditMemberOpen(false);
+                setCurrentMember(null);
+                setMemberFormData({
+                  email: "",
+                  first_name: "",
+                  last_name: "",
+                  password: "",
+                  role: "member",
+                  is_active: true,
+                  phone: "",
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEditMember} disabled={memberActionLoading}>
+              {memberActionLoading ? "Updating..." : "Update Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Member Confirmation Dialog */}
+      <Dialog open={isDeleteMemberOpen} onOpenChange={setIsDeleteMemberOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this member? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {currentMember && (
+            <div className="py-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-500">Name:</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {currentMember.first_name} {currentMember.last_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-500">Email:</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {currentMember.email}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-500">Role:</span>
+                  <span className="text-sm font-semibold text-gray-900 capitalize">
+                    {currentMember.role}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-800 font-medium">
+                  Warning: This will permanently delete the member account and all associated data.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteMemberOpen(false);
+                setCurrentMember(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteMember}
+              disabled={memberActionLoading}
+            >
+              {memberActionLoading ? "Deleting..." : "Delete Member"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1449,7 +1841,7 @@ export default function AdminDashboard() {
 
       {/* Add Instructor Dialog */}
       <Dialog open={isAddInstructorOpen} onOpenChange={setIsAddInstructorOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Instructor</DialogTitle>
             <DialogDescription>
@@ -1483,7 +1875,7 @@ export default function AdminDashboard() {
 
       {/* Add Event Dialog */}
       <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Event</DialogTitle>
             <DialogDescription>
@@ -1616,7 +2008,7 @@ export default function AdminDashboard() {
 
       {/* Edit Tier Dialog */}
       <Dialog open={isEditTierOpen} onOpenChange={setIsEditTierOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Membership Tier</DialogTitle>
             <DialogDescription>

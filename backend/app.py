@@ -33,9 +33,14 @@ from backend.routes import security
 from backend.routes import privacy
 from backend.routes import health
 from backend.routes import subscriptions
+from backend.routes import resources
 from backend.routes.admin import search_analytics
 from backend.routes.admin import indexing
 from backend.routes.admin import training_analytics
+from backend.routes.admin import analytics
+from backend.routes.admin import members
+from backend.routes.admin import settings as admin_settings_routes
+from backend.routes.admin import instructors
 from backend.routes.webhooks import beehiiv
 from backend.middleware.metrics_middleware import MetricsMiddleware, get_request_id
 from backend.middleware.security_headers import SecurityHeadersMiddleware
@@ -112,7 +117,7 @@ if settings.SECURITY_HEADERS_ENABLED:
 # Add CSRF protection middleware (US-071)
 # This must be added AFTER CORS and security headers
 # CSRF protection uses double-submit cookie pattern with SameSite=Strict
-if getattr(settings, 'CSRF_PROTECTION_ENABLED', True):
+if settings.CSRF_PROTECTION_ENABLED:
     app.add_middleware(CSRFMiddleware)
     logger.info("CSRF protection middleware enabled")
 
@@ -249,10 +254,15 @@ app.include_router(blog.router)
 app.include_router(certifications.router)
 app.include_router(security.router)
 app.include_router(privacy.router)
+app.include_router(resources.router)  # Training resources for students
 app.include_router(beehiiv.router)
 app.include_router(search_analytics.router)
 app.include_router(indexing.router)
 app.include_router(training_analytics.router)
+app.include_router(analytics.router)  # Admin analytics dashboard
+app.include_router(members.router)  # Admin members management
+app.include_router(admin_settings_routes.router)  # Admin settings management
+app.include_router(instructors.router)  # Admin instructor management
 
 
 @app.on_event("startup")

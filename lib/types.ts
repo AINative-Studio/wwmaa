@@ -9,6 +9,24 @@ export interface User {
   belt_rank?: string;
   dojo?: string;
   country?: string;
+  // Extended profile fields
+  first_name?: string;
+  last_name?: string;
+  display_name?: string;
+  bio?: string;
+  phone?: string;
+  website?: string;
+  avatar_url?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  emergency_contact?: {
+    name: string;
+    relationship: string;
+    phone: string;
+    email?: string;
+  };
 }
 
 export interface MembershipTier {
@@ -211,4 +229,51 @@ export interface SubscriptionDetails {
     next_payment_attempt?: string;
   };
   recent_invoices: Invoice[];
+}
+
+export type ResourceCategory = "video" | "document" | "pdf" | "slide" | "article" | "recording" | "certification" | "other";
+export type ResourceVisibility = "public" | "members_only" | "instructors_only" | "admin_only";
+export type ResourceStatus = "draft" | "published" | "archived";
+
+export interface Resource {
+  id: string;
+  title: string;
+  description?: string;
+  category: ResourceCategory;
+  tags: string[];
+  file_url?: string;
+  file_name?: string;
+  file_size_bytes?: number;
+  file_type?: string;
+  external_url?: string;
+  cloudflare_stream_id?: string;
+  video_duration_seconds?: number;
+  thumbnail_url?: string;
+  visibility: ResourceVisibility;
+  status: ResourceStatus;
+  published_at?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  discipline?: string;
+  related_session_id?: string;
+  related_event_id?: string;
+  is_featured: boolean;
+  display_order: number;
+  view_count: number;
+  download_count: number;
+}
+
+export interface ResourceListResponse {
+  resources: Resource[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ResourceFilters {
+  category?: ResourceCategory;
+  status?: ResourceStatus;
+  featured_only?: boolean;
+  discipline?: string;
 }

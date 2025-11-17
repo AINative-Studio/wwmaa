@@ -5,6 +5,7 @@ import { Footer } from "@/components/footer";
 import { AuthProvider } from "@/lib/auth-context";
 import { CookieBanner } from "@/components/cookie-consent/cookie-banner";
 import { AnalyticsLoader } from "@/components/cookie-consent/analytics-loader";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata = {
   metadataBase: new URL("https://wwmaa.ainative.studio"),
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Footer />
           </div>
           <CookieBanner />
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

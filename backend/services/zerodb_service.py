@@ -1480,4 +1480,6 @@ def get_zerodb_client() -> ZeroDBClient:
 
 
 # Convenience alias for backward compatibility
-zerodb_client = get_zerodb_client()
+# NOTE: Commented out to prevent module-level authentication during imports (breaks tests)
+# Use get_zerodb_client() instead
+# zerodb_client = get_zerodb_client()

@@ -12,13 +12,12 @@ const nextConfig = {
   // Log environment variables during build for debugging
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    NEXT_PUBLIC_API_MODE: process.env.NEXT_PUBLIC_API_MODE,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   },
 };
 
 // Validate required environment variables at build time
-const requiredEnvVars = ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_API_MODE'];
+const requiredEnvVars = ['NEXT_PUBLIC_API_URL'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
@@ -26,14 +25,13 @@ if (missingEnvVars.length > 0) {
   missingEnvVars.forEach(varName => {
     console.warn(`   - ${varName}`);
   });
-  console.warn('\n   The application will default to localhost:8000');
+  console.warn('\n   The application will default to production backend URL');
   console.warn('   Set these variables in Railway to connect to production backend.\n');
 }
 
 // Log the API URL being used during build
 console.log('\n🔧 Build-time environment:');
-console.log(`   NEXT_PUBLIC_API_URL: ${process.env.NEXT_PUBLIC_API_URL || 'NOT SET (will use localhost:8000)'}`);
-console.log(`   NEXT_PUBLIC_API_MODE: ${process.env.NEXT_PUBLIC_API_MODE || 'NOT SET (will use mock)'}`);
+console.log(`   NEXT_PUBLIC_API_URL: ${process.env.NEXT_PUBLIC_API_URL || 'NOT SET (will use production)'}`);
 console.log(`   NEXT_PUBLIC_SITE_URL: ${process.env.NEXT_PUBLIC_SITE_URL || 'NOT SET'}\n`);
 
 module.exports = nextConfig;

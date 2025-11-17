@@ -17,6 +17,17 @@ from faker import Faker
 # Add backend to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# CRITICAL: Set essential environment variables BEFORE any app imports
+# These MUST be set at module level to ensure they're available when Settings class is instantiated
+os.environ.setdefault("ZERODB_API_KEY", "test_api_key_123456789")
+os.environ.setdefault("ZERODB_PROJECT_ID", "test_project_id_123")
+os.environ.setdefault("ZERODB_API_BASE_URL", "https://test.api.ainative.studio")
+os.environ.setdefault("JWT_SECRET", "test_jwt_secret_key_must_be_at_least_32_characters_long")
+os.environ.setdefault("AINATIVE_API_KEY", "test_ainative_key")
+os.environ.setdefault("AI_REGISTRY_API_KEY", "test_ai_registry_key")
+os.environ.setdefault("OPENAI_API_KEY", "test_openai_key_sk_1234567890")
+os.environ.setdefault("CSRF_PROTECTION_ENABLED", "false")
+
 
 # ============================================================================
 # FAKER SETUP
@@ -52,6 +63,7 @@ def test_env_vars() -> Dict[str, str]:
         "ZERODB_EMAIL": "test@example.com",
         "ZERODB_PASSWORD": "test_password",
         "ZERODB_API_KEY": "test_api_key_123456789",
+        "ZERODB_PROJECT_ID": "test_project_id_123",
         "ZERODB_API_BASE_URL": "https://test.api.ainative.studio",
         "JWT_SECRET": "test_jwt_secret_key_must_be_at_least_32_characters_long",
         "JWT_ALGORITHM": "HS256",
@@ -74,6 +86,7 @@ def test_env_vars() -> Dict[str, str]:
         "OPENAI_API_KEY": "test_openai_key_sk_1234567890",
         "PYTHON_BACKEND_URL": "http://localhost:8000",
         "TEST_COVERAGE_MINIMUM": "80",
+        "CSRF_PROTECTION_ENABLED": "false",
     }
 
 

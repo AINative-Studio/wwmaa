@@ -105,8 +105,9 @@ function SearchPageContent() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
-                type="text"
-                placeholder="Ask anything about martial arts..."
+                type="search"
+                name="query"
+                placeholder="Search martial arts knowledge, events, and resources..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-10 pr-4 h-12 text-lg"

@@ -102,3 +102,8 @@ web_modules/
 .grunt
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Playwright E2E test artifacts
+test-results/
+playwright-report/
+playwright/.cache/

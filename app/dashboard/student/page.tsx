@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   User,
   Calendar,
@@ -30,7 +30,14 @@ import {
   Search,
   ChevronRight,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
+import { ResourceCard } from '@/components/ResourceCard';
+import { resourceApi } from '@/lib/resource-api';
+import { Resource } from '@/lib/types';
+import { api } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import { User as UserType } from '@/lib/types';
 
 type NavSection = 'overview' | 'profile' | 'events' | 'payments' | 'resources';
 type EventTab = 'upcoming' | 'past' | 'all';
@@ -66,20 +73,303 @@ export default function StudentDashboard() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [eventTab, setEventTab] = useState<EventTab>('upcoming');
   const [eventFilter, setEventFilter] = useState<EventFilter>('all');
+  const [userData, setUserData] = useState<UserType | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
-  // Mock student data
-  const student = {
-    name: 'John Anderson',
-    email: 'john.anderson@email.com',
-    membershipTier: 'Gold Member',
-    beltRank: '2nd Dan Black Belt',
-    dojo: 'Tiger Dojo',
-    phone: '+1 (555) 123-4567',
+  // Form state for profile editing
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    country: 'USA',
+    emergency_contact: {
+      name: '',
+      relationship: '',
+      phone: '',
+      email: '',
+    },
+  });
+
+  // Load user data on mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setIsLoadingUser(true);
+      const user = await api.getCurrentUser();
+      setUserData(user);
+
+      // Initialize form with user data
+      setFormData({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        city: user.city || '',
+        state: user.state || '',
+        zip_code: user.zip_code || '',
+        country: user.country || 'USA',
+        emergency_contact: {
+          name: user.emergency_contact?.name || '',
+          relationship: user.emergency_contact?.relationship || '',
+          phone: user.emergency_contact?.phone || '',
+          email: user.emergency_contact?.email || '',
+        },
+      });
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load profile data. Please refresh the page.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingUser(false);
+    }
+  };
+
+  // Validation functions
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true; // Optional field
+    // E.164 format: +[country code][number]
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    return phoneRegex.test(phone.replace(/[\s()-]/g, ''));
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.first_name.trim()) {
+      errors.first_name = 'First name is required';
+    }
+
+    if (!formData.last_name.trim()) {
+      errors.last_name = 'Last name is required';
+    }
+
+    if (formData.phone && !validatePhone(formData.phone)) {
+      errors.phone = 'Invalid phone number format (use +1234567890)';
+    }
+
+    if (formData.emergency_contact.phone && !validatePhone(formData.emergency_contact.phone)) {
+      errors.emergency_phone = 'Invalid emergency contact phone format';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    // Clear error for this field
+    if (formErrors[field]) {
+      setFormErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleEmergencyContactChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      emergency_contact: {
+        ...prev.emergency_contact,
+        [field]: value,
+      },
+    }));
+    // Clear error for emergency contact phone
+    if (field === 'phone' && formErrors.emergency_phone) {
+      setFormErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.emergency_phone;
+        return newErrors;
+      });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!validateForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      // Prepare data for submission
+      const updateData: any = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        phone: formData.phone || undefined,
+        address: formData.address || undefined,
+        city: formData.city || undefined,
+        state: formData.state || undefined,
+        zip_code: formData.zip_code || undefined,
+        country: formData.country,
+      };
+
+      // Only include emergency contact if at least name is provided
+      if (formData.emergency_contact.name) {
+        updateData.emergency_contact = {
+          name: formData.emergency_contact.name,
+          relationship: formData.emergency_contact.relationship,
+          phone: formData.emergency_contact.phone,
+          email: formData.emergency_contact.email || undefined,
+        };
+      }
+
+      const response = await api.updateProfile(updateData);
+
+      // Update local user data
+      setUserData((prev) => prev ? { ...prev, ...response.user } : null);
+
+      toast({
+        title: 'Success',
+        description: 'Profile updated successfully',
+      });
+
+      setIsEditingProfile(false);
+
+      // Reload user data to ensure we have latest from server
+      await loadUserData();
+    } catch (error: any) {
+      console.error('Failed to save profile:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update profile. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please upload a JPEG, PNG, WebP, or GIF image',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'File Too Large',
+        description: 'Image must be smaller than 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingPhoto(true);
+
+      const response = await api.uploadProfilePhoto(file);
+
+      // Update local user data with new photo URL
+      setUserData((prev) => prev ? { ...prev, avatar_url: response.photo_url } : null);
+
+      toast({
+        title: 'Success',
+        description: 'Profile photo updated successfully',
+      });
+
+      // Reload user data
+      await loadUserData();
+    } catch (error: any) {
+      console.error('Failed to upload photo:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to upload photo. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset form to current user data
+    if (userData) {
+      setFormData({
+        first_name: userData.first_name || '',
+        last_name: userData.last_name || '',
+        phone: userData.phone || '',
+        address: userData.address || '',
+        city: userData.city || '',
+        state: userData.state || '',
+        zip_code: userData.zip_code || '',
+        country: userData.country || 'USA',
+        emergency_contact: {
+          name: userData.emergency_contact?.name || '',
+          relationship: userData.emergency_contact?.relationship || '',
+          phone: userData.emergency_contact?.phone || '',
+          email: userData.emergency_contact?.email || '',
+        },
+      });
+    }
+    setFormErrors({});
+    setIsEditingProfile(false);
+  };
+
+  // Use userData or fallback to mock for display
+  const student = userData ? {
+    ...userData,
+    membershipTier: userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : 'Member',
+    beltRank: userData.belt_rank || '-',
+    dojo: userData.dojo || '-',
+    phone: '-',
     membershipExpiry: '2025-12-31',
     emergencyContact: {
-      name: 'Jane Anderson',
-      relationship: 'Spouse',
-      phone: '+1 (555) 987-6543',
+      name: '-',
+      relationship: '-',
+      phone: '-',
+    },
+  } : {
+    name: 'Loading...',
+    email: 'loading@example.com',
+    membershipTier: 'Member',
+    beltRank: '-',
+    dojo: '-',
+    phone: '-',
+    membershipExpiry: '2025-12-31',
+    emergencyContact: {
+      name: '-',
+      relationship: '-',
+      phone: '-',
     },
   };
 
@@ -485,26 +775,44 @@ export default function StudentDashboard() {
             <div className="space-y-8">
               <div className="flex items-center justify-between">
                 <h1 className="font-display text-3xl font-bold text-dojo-navy">My Profile</h1>
-                <button
-                  onClick={() => setIsEditingProfile(!isEditingProfile)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    isEditingProfile
-                      ? 'bg-success text-white hover:bg-success/90'
-                      : 'bg-primary text-primary-fg hover:bg-primary/90'
-                  }`}
-                >
-                  {isEditingProfile ? (
-                    <>
-                      <Save className="w-4 h-4" />
-                      Save Changes
-                    </>
-                  ) : (
-                    <>
-                      <Edit2 className="w-4 h-4" />
-                      Edit Profile
-                    </>
+                <div className="flex items-center gap-3">
+                  {isEditingProfile && (
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium border border-border hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </button>
                   )}
-                </button>
+                  <button
+                    onClick={() => isEditingProfile ? handleSaveProfile() : setIsEditingProfile(true)}
+                    disabled={isSaving || isUploadingPhoto}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                      isEditingProfile
+                        ? 'bg-success text-white hover:bg-success/90'
+                        : 'bg-primary text-primary-fg hover:bg-primary/90'
+                    }`}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : isEditingProfile ? (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    ) : (
+                      <>
+                        <Edit2 className="w-4 h-4" />
+                        Edit Profile
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -514,17 +822,43 @@ export default function StudentDashboard() {
                     <h2 className="font-semibold text-dojo-navy mb-4">Profile Photo</h2>
                     <div className="flex flex-col items-center">
                       <div className="relative">
-                        <div className="w-32 h-32 rounded-full gradient-navy flex items-center justify-center text-white font-bold text-4xl">
-                          {student.name.split(' ').map((n) => n[0]).join('')}
-                        </div>
+                        {userData?.avatar_url ? (
+                          <img
+                            src={userData.avatar_url}
+                            alt="Profile"
+                            className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
+                          />
+                        ) : (
+                          <div className="w-32 h-32 rounded-full gradient-navy flex items-center justify-center text-white font-bold text-4xl">
+                            {userData?.name ? userData.name.split(' ').map((n) => n[0]).join('') : '?'}
+                          </div>
+                        )}
                         {isEditingProfile && (
-                          <button className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg hover:bg-accent/90 transition-colors">
-                            <Camera className="w-5 h-5" />
-                          </button>
+                          <>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                              onChange={handlePhotoUpload}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isUploadingPhoto}
+                              className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg hover:bg-accent/90 transition-colors disabled:opacity-50"
+                            >
+                              {isUploadingPhoto ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : (
+                                <Camera className="w-5 h-5" />
+                              )}
+                            </button>
+                          </>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-4 text-center">
-                        {isEditingProfile ? 'Click to upload new photo' : 'Profile Photo'}
+                        {isEditingProfile ? (isUploadingPhoto ? 'Uploading...' : 'Click camera to upload') : 'Profile Photo'}
                       </p>
                     </div>
                   </div>
@@ -553,72 +887,149 @@ export default function StudentDashboard() {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-muted-foreground mb-2">Full Name</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">
+                          First Name <span className="text-danger">*</span>
+                        </label>
                         {isEditingProfile ? (
-                          <input
-                            type="text"
-                            defaultValue={student.name}
-                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
+                          <div>
+                            <input
+                              type="text"
+                              value={formData.first_name}
+                              onChange={(e) => handleInputChange('first_name', e.target.value)}
+                              className={`w-full px-4 py-2 rounded-lg border ${formErrors.first_name ? 'border-danger' : 'border-border'} bg-bg focus:outline-none focus:ring-2 focus:ring-ring`}
+                              placeholder="Enter first name"
+                            />
+                            {formErrors.first_name && (
+                              <p className="text-sm text-danger mt-1">{formErrors.first_name}</p>
+                            )}
+                          </div>
                         ) : (
-                          <div className="text-fg font-medium">{student.name}</div>
+                          <div className="text-fg font-medium">{formData.first_name || '-'}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">
+                          Last Name <span className="text-danger">*</span>
+                        </label>
+                        {isEditingProfile ? (
+                          <div>
+                            <input
+                              type="text"
+                              value={formData.last_name}
+                              onChange={(e) => handleInputChange('last_name', e.target.value)}
+                              className={`w-full px-4 py-2 rounded-lg border ${formErrors.last_name ? 'border-danger' : 'border-border'} bg-bg focus:outline-none focus:ring-2 focus:ring-ring`}
+                              placeholder="Enter last name"
+                            />
+                            {formErrors.last_name && (
+                              <p className="text-sm text-danger mt-1">{formErrors.last_name}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-fg font-medium">{formData.last_name || '-'}</div>
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-2">Email Address</label>
-                        {isEditingProfile ? (
-                          <input
-                            type="email"
-                            defaultValue={student.email}
-                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
-                        ) : (
-                          <div className="text-fg font-medium flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-muted-foreground" />
-                            {student.email}
-                          </div>
+                        <div className="text-fg font-medium flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-muted-foreground" />
+                          {userData?.email || '-'}
+                        </div>
+                        {isEditingProfile && (
+                          <p className="text-xs text-muted-foreground mt-1">Email cannot be changed here</p>
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-2">Phone Number</label>
                         {isEditingProfile ? (
-                          <input
-                            type="tel"
-                            defaultValue={student.phone}
-                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
+                          <div>
+                            <input
+                              type="tel"
+                              value={formData.phone}
+                              onChange={(e) => handleInputChange('phone', e.target.value)}
+                              className={`w-full px-4 py-2 rounded-lg border ${formErrors.phone ? 'border-danger' : 'border-border'} bg-bg focus:outline-none focus:ring-2 focus:ring-ring`}
+                              placeholder="+1234567890"
+                            />
+                            {formErrors.phone && (
+                              <p className="text-sm text-danger mt-1">{formErrors.phone}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">Use international format (+1...)</p>
+                          </div>
                         ) : (
                           <div className="text-fg font-medium flex items-center gap-2">
                             <Phone className="w-4 h-4 text-muted-foreground" />
-                            {student.phone}
+                            {formData.phone || '-'}
                           </div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-muted-foreground mb-2">Belt Rank</label>
-                        {isEditingProfile ? (
-                          <select className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring">
-                            <option>2nd Dan Black Belt</option>
-                            <option>3rd Dan Black Belt</option>
-                            <option>4th Dan Black Belt</option>
-                          </select>
-                        ) : (
-                          <div className="text-fg font-medium">{student.beltRank}</div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-muted-foreground mb-2">Dojo/School</label>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">City</label>
                         {isEditingProfile ? (
                           <input
                             type="text"
-                            defaultValue={student.dojo}
+                            value={formData.city}
+                            onChange={(e) => handleInputChange('city', e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="Enter city"
                           />
                         ) : (
-                          <div className="text-fg font-medium">{student.dojo}</div>
+                          <div className="text-fg font-medium">{formData.city || '-'}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">State</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="text"
+                            value={formData.state}
+                            onChange={(e) => handleInputChange('state', e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="Enter state"
+                          />
+                        ) : (
+                          <div className="text-fg font-medium">{formData.state || '-'}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">ZIP Code</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="text"
+                            value={formData.zip_code}
+                            onChange={(e) => handleInputChange('zip_code', e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="Enter ZIP code"
+                          />
+                        ) : (
+                          <div className="text-fg font-medium">{formData.zip_code || '-'}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">Country</label>
+                        {isEditingProfile ? (
+                          <input
+                            type="text"
+                            value={formData.country}
+                            onChange={(e) => handleInputChange('country', e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="Enter country"
+                          />
+                        ) : (
+                          <div className="text-fg font-medium">{formData.country || '-'}</div>
                         )}
                       </div>
                     </div>
+                    {isEditingProfile && (
+                      <div className="mt-6">
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">Address</label>
+                        <input
+                          type="text"
+                          value={formData.address}
+                          onChange={(e) => handleInputChange('address', e.target.value)}
+                          className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="Enter full address"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Emergency Contact */}
@@ -627,17 +1038,19 @@ export default function StudentDashboard() {
                       <Shield className="w-5 h-5" />
                       Emergency Contact
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-2">Name</label>
                         {isEditingProfile ? (
                           <input
                             type="text"
-                            defaultValue={student.emergencyContact.name}
+                            value={formData.emergency_contact.name}
+                            onChange={(e) => handleEmergencyContactChange('name', e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="Enter emergency contact name"
                           />
                         ) : (
-                          <div className="text-fg font-medium">{student.emergencyContact.name}</div>
+                          <div className="text-fg font-medium">{formData.emergency_contact.name || '-'}</div>
                         )}
                       </div>
                       <div>
@@ -645,23 +1058,46 @@ export default function StudentDashboard() {
                         {isEditingProfile ? (
                           <input
                             type="text"
-                            defaultValue={student.emergencyContact.relationship}
+                            value={formData.emergency_contact.relationship}
+                            onChange={(e) => handleEmergencyContactChange('relationship', e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="e.g., Spouse, Parent, Sibling"
                           />
                         ) : (
-                          <div className="text-fg font-medium">{student.emergencyContact.relationship}</div>
+                          <div className="text-fg font-medium">{formData.emergency_contact.relationship || '-'}</div>
                         )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-muted-foreground mb-2">Phone Number</label>
                         {isEditingProfile ? (
+                          <div>
+                            <input
+                              type="tel"
+                              value={formData.emergency_contact.phone}
+                              onChange={(e) => handleEmergencyContactChange('phone', e.target.value)}
+                              className={`w-full px-4 py-2 rounded-lg border ${formErrors.emergency_phone ? 'border-danger' : 'border-border'} bg-bg focus:outline-none focus:ring-2 focus:ring-ring`}
+                              placeholder="+1234567890"
+                            />
+                            {formErrors.emergency_phone && (
+                              <p className="text-sm text-danger mt-1">{formErrors.emergency_phone}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-fg font-medium">{formData.emergency_contact.phone || '-'}</div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-muted-foreground mb-2">Email (Optional)</label>
+                        {isEditingProfile ? (
                           <input
-                            type="tel"
-                            defaultValue={student.emergencyContact.phone}
+                            type="email"
+                            value={formData.emergency_contact.email}
+                            onChange={(e) => handleEmergencyContactChange('email', e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-border bg-bg focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="emergency@example.com"
                           />
                         ) : (
-                          <div className="text-fg font-medium">{student.emergencyContact.phone}</div>
+                          <div className="text-fg font-medium">{formData.emergency_contact.email || '-'}</div>
                         )}
                       </div>
                     </div>

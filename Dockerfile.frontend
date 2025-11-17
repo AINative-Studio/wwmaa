@@ -20,14 +20,12 @@ RUN rm -rf node_modules/.cache || true
 
 # Accept build arguments from Railway
 ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_API_MODE
 ARG NEXT_PUBLIC_SITE_URL
 ARG NODE_ENV
 
 # Set environment variables for the build
 # TEMPORARY: Hardcode production values as fallback
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://athletic-curiosity-production.up.railway.app}
-ENV NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE:-live}
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://wwmaa.ainative.studio}
 ENV NODE_ENV=${NODE_ENV:-production}
 
@@ -40,7 +38,6 @@ ENV NEXT_SKIP_NATIVE_POSTINSTALL=1
 # Log environment variables (for debugging)
 RUN echo "🔧 Build-time environment variables:" && \
     echo "   NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" && \
-    echo "   NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE}" && \
     echo "   NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}" && \
     echo "   NODE_ENV=${NODE_ENV}"
 

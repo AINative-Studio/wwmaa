@@ -55,13 +55,12 @@ export default function EventsPage() {
   const getDateRange = () => {
     const now = new Date();
 
-    // For calendar view, fetch events for the visible month range
+    // For calendar view, don't use date filtering due to backend issues
+    // Let the calendar component filter the events client-side
     if (view === "calendar") {
-      const start = startOfMonth(currentDate);
-      const end = endOfMonth(addMonths(currentDate, 1)); // Fetch current and next month
       return {
-        date_from: format(start, "yyyy-MM-dd"),
-        date_to: format(end, "yyyy-MM-dd"),
+        date_from: undefined,
+        date_to: undefined,
       };
     }
 
@@ -79,43 +78,15 @@ export default function EventsPage() {
         };
       case "upcoming":
       default:
+        // Don't filter by date for "upcoming" - let backend return all published events
+        // This works around a backend date filtering issue
         return {
-          date_from: format(now, "yyyy-MM-dd"),
+          date_from: undefined,
           date_to: undefined,
         };
     }
   };
 
-  // Fetch events
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const dateRange = getDateRange();
-      const offset = (currentPage - 1) * EVENTS_PER_PAGE;
-
-      const response = await eventApi.getEvents({
-        type: filters.type,
-        location: filters.location,
-        price: filters.price,
-        date_from: dateRange.date_from,
-        date_to: dateRange.date_to,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        limit: view === "calendar" ? 100 : EVENTS_PER_PAGE, // Fetch more for calendar view
-        offset,
-      });
-
-      setEvents(response.events);
-      setTotal(response.total);
-    } catch (err) {
-      setError("Failed to load events. Please try again later.");
-      console.error("Error fetching events:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Update URL when filters/sort/view change
   useEffect(() => {
@@ -138,7 +109,39 @@ export default function EventsPage() {
 
   // Fetch events when filters/sort/page/view change
   useEffect(() => {
-    fetchEvents();
+    const loadEvents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const dateRange = getDateRange();
+        const offset = (currentPage - 1) * EVENTS_PER_PAGE;
+
+        const response = await eventApi.getEvents({
+          type: filters.type,
+          location: filters.location,
+          price: filters.price,
+          date_from: dateRange.date_from,
+          date_to: dateRange.date_to,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+          limit: view === "calendar" ? 100 : EVENTS_PER_PAGE,
+          offset,
+        });
+
+        setEvents(response.events);
+        setTotal(response.total);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load events. Please try again later.";
+        setError(errorMessage);
+        console.error("Error fetching events:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, sortBy, sortOrder, currentPage, view, currentDate]);
 
   // View change handler
@@ -268,7 +271,7 @@ export default function EventsPage() {
                 <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
                   <p className="text-red-800 font-semibold mb-2">Error Loading Events</p>
                   <p className="text-red-600 text-sm">{error}</p>
-                  <Button onClick={fetchEvents} className="mt-4" variant="outline">
+                  <Button onClick={() => setCurrentPage(1)} className="mt-4" variant="outline">
                     Try Again
                   </Button>
                 </div>

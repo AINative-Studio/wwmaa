@@ -105,7 +105,7 @@ class AIRegistryService:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        base_url: str = "https://api.ainative.studio",
+        base_url: str = "https://api.openai.com",
         timeout: int = 30,
         max_retries: int = 3
     ):
@@ -113,16 +113,17 @@ class AIRegistryService:
         Initialize AI Registry service.
 
         Args:
-            api_key: AINative API key (defaults to settings.AINATIVE_API_KEY or AI_REGISTRY_API_KEY)
-            base_url: AINative API base URL
+            api_key: OpenAI API key (defaults to settings.OPENAI_API_KEY)
+            base_url: OpenAI API base URL (default: https://api.openai.com)
             timeout: Request timeout in seconds (default: 30)
             max_retries: Maximum number of retries (default: 3)
         """
-        # Try both API keys for backward compatibility
+        # Use OpenAI API key (try multiple sources for backward compatibility)
         self.api_key = (
             api_key or
+            getattr(settings, 'OPENAI_API_KEY', None) or
             getattr(settings, 'AI_REGISTRY_API_KEY', None) or
-            settings.AINATIVE_API_KEY
+            getattr(settings, 'AINATIVE_API_KEY', None)
         )
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
@@ -134,7 +135,7 @@ class AIRegistryService:
         self.temperature = getattr(settings, 'AI_REGISTRY_TEMPERATURE', 0.7)
 
         if not self.api_key:
-            raise AIRegistryError("AI_REGISTRY_API_KEY or AINATIVE_API_KEY is required")
+            raise AIRegistryError("OPENAI_API_KEY is required for AI Registry service")
 
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",

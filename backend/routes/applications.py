@@ -49,10 +49,14 @@ router = APIRouter(prefix="/api/applications", tags=["applications"])
 logger = logging.getLogger(__name__)
 
 # Get ZeroDB client
-zerodb_client = get_zerodb_client()
+# NOTE: Commented out to prevent module-level authentication during imports (breaks tests)
+# Use get_zerodb_client() instead
+# zerodb_client = get_zerodb_client()
 
 # Initialize email service
-email_service = get_email_service()
+# NOTE: Commented out to prevent module-level DB connection during imports (breaks tests)
+# Use get_email_service() instead
+# email_service = get_email_service()
 
 
 # ============================================================================
@@ -146,7 +150,7 @@ async def get_application_by_id(application_id: UUID) -> Application:
         HTTPException: If application not found
     """
     try:
-        result = zerodb_client.query_documents(
+        result = get_zerodb_client().query_documents(
             collection="applications",
             filter={"id": str(application_id)}
         )
@@ -179,7 +183,7 @@ async def get_approvals_for_application(application_id: UUID) -> List[Approval]:
         List of Approval objects
     """
     try:
-        results = zerodb_client.query_documents(
+        results = get_zerodb_client().query_documents(
             collection="approvals",
             filter={"application_id": str(application_id)}
         )
@@ -201,7 +205,7 @@ async def get_user_info(user_id: UUID) -> Optional[dict]:
         User information dict or None
     """
     try:
-        result = zerodb_client.query_documents(
+        result = get_zerodb_client().query_documents(
             collection="users",
             filter={"id": str(user_id)}
         )
@@ -240,7 +244,7 @@ async def check_duplicate_approval(application_id: UUID, board_member_id: UUID) 
         True if board member has already approved
     """
     try:
-        existing_approvals = zerodb_client.query_documents(
+        existing_approvals = get_zerodb_client().query_documents(
             collection="approvals",
             filter={
                 "application_id": str(application_id),
@@ -266,7 +270,7 @@ async def count_approvals(application_id: UUID) -> int:
         Number of approvals
     """
     try:
-        approvals = zerodb_client.query_documents(
+        approvals = get_zerodb_client().query_documents(
             collection="approvals",
             filter={
                 "application_id": str(application_id),
@@ -296,7 +300,7 @@ async def auto_approve_application(application_id: UUID, approvals_count: int) -
     if approvals_count >= REQUIRED_APPROVALS:
         try:
             # Update application status to approved
-            zerodb_client.update_document(
+            get_zerodb_client().update_document(
                 collection="applications",
                 filter={"id": str(application_id)},
                 update={
@@ -363,7 +367,7 @@ async def list_applications(
 
         logger.info(f"User {current_user['email']} querying applications with filter: {query_filter}")
 
-        applications = zerodb_client.query_documents(
+        applications = get_zerodb_client().query_documents(
             collection="applications",
             filter=query_filter
         )
@@ -457,7 +461,7 @@ async def list_pending_applications(
             query_filter["status"] = {"$in": ["submitted", "under_review"]}
 
         # Query applications
-        applications = zerodb_client.query_documents(
+        applications = get_zerodb_client().query_documents(
             collection="applications",
             filter=query_filter
         )
@@ -662,14 +666,14 @@ async def approve_application(
 
     try:
         # Save approval to ZeroDB
-        zerodb_client.insert_document(
+        get_zerodb_client().insert_document(
             collection="approvals",
             document=approval.model_dump(mode="json")
         )
 
         # Update application status to under_review if it was submitted
         if application.status == ApplicationStatus.SUBMITTED:
-            zerodb_client.update_document(
+            get_zerodb_client().update_document(
                 collection="applications",
                 filter={"id": str(application_id)},
                 update={
@@ -688,14 +692,14 @@ async def approve_application(
         try:
             if auto_approved:
                 # Application fully approved - send final approval email
-                email_service.send_application_fully_approved_email(
+                get_email_service().send_application_fully_approved_email(
                     email=application.email,
                     applicant_name=f"{application.first_name} {application.last_name}"
                 )
                 message = f"Application approved! Total approvals: {approvals_count}/2. Application is now fully approved."
             else:
                 # First approval - send partial approval email
-                email_service.send_application_first_approval_email(
+                get_email_service().send_application_first_approval_email(
                     email=application.email,
                     applicant_name=f"{application.first_name} {application.last_name}",
                     approver_name=current_user.get("email", "Board Member"),
@@ -855,14 +859,14 @@ async def request_additional_info(
 
     try:
         # Save request to ZeroDB
-        zerodb_client.insert_document(
+        get_zerodb_client().insert_document(
             collection="approvals",
             document=approval.model_dump(mode="json")
         )
 
         # Send email notification
         try:
-            email_service.send_application_info_request_email(
+            get_email_service().send_application_info_request_email(
                 email=application.email,
                 applicant_name=f"{application.first_name} {application.last_name}",
                 request_message=request.message,

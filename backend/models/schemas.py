@@ -284,6 +284,24 @@ class Application(BaseDocument):
     subscription_tier: SubscriptionTier = Field(default=SubscriptionTier.FREE, description="Requested tier")
     certificate_url: Optional[str] = Field(None, description="Certificate file URL if approved")
 
+    # Two-Board Approval Workflow
+    approval_count: int = Field(default=0, ge=0, description="Number of approvals received")
+    required_approvals: int = Field(default=2, ge=1, le=5, description="Required approvals for full approval")
+    rejection_count: int = Field(default=0, ge=0, description="Number of rejections received")
+
+    # Denormalized for performance
+    board_votes: List[UUID] = Field(default_factory=list, description="Board member IDs who voted")
+    approver_ids: List[UUID] = Field(default_factory=list, description="Board member IDs who approved")
+    rejector_ids: List[UUID] = Field(default_factory=list, description="Board member IDs who rejected")
+
+    # Timestamps
+    first_approval_at: Optional[datetime] = Field(None, description="First approval timestamp")
+    fully_approved_at: Optional[datetime] = Field(None, description="Full approval timestamp (when required approvals met)")
+
+    # Workflow state
+    pending_board_review: bool = Field(default=False, description="Awaiting board member votes")
+    board_review_started_at: Optional[datetime] = Field(None, description="When first board member reviewed")
+
 
 # ============================================================================
 # APPROVALS COLLECTION
@@ -302,6 +320,14 @@ class Approval(BaseDocument):
     conditions: Optional[List[str]] = Field(default_factory=list, description="Conditional approval requirements")
     priority: int = Field(default=0, ge=0, le=10, description="Priority level (0-10)")
     is_active: bool = Field(default=True, description="Whether this approval is currently active")
+
+    # Sequence tracking
+    sequence: int = Field(default=0, ge=0, description="Vote sequence (1st, 2nd, 3rd...)")
+    vote_cast_at: Optional[datetime] = Field(None, description="When vote was cast")
+
+    # Notification tracking
+    notification_sent: bool = Field(default=False, description="Email notification sent")
+    notification_sent_at: Optional[datetime] = Field(None, description="Notification sent timestamp")
 
 
 # ============================================================================
@@ -1055,6 +1081,9 @@ def get_all_models():
         "session_chat_messages": SessionChatMessage,
         "session_mutes": SessionMute,
         "session_raised_hands": SessionRaisedHand,
+        "instructor_performance": InstructorPerformance,
+        "resources": Resource,
+        "admin_settings": AdminSettings,
     }
 
 
@@ -1313,3 +1342,258 @@ class SessionRaisedHand(BaseDocument):
     raised_at: datetime = Field(default_factory=datetime.utcnow, description="When hand was raised")
     lowered_at: Optional[datetime] = Field(None, description="When hand was lowered")
     acknowledged_by: Optional[UUID] = Field(None, description="Reference to users collection (instructor who acknowledged)")
+
+
+# ============================================================================
+# RESOURCES COLLECTION - Training Materials & Documents
+# ============================================================================
+
+class ResourceCategory(str, Enum):
+    """Resource category types"""
+    VIDEO = "video"
+    DOCUMENT = "document"
+    PDF = "pdf"
+    SLIDE = "slide"
+    ARTICLE = "article"
+    RECORDING = "recording"
+    CERTIFICATION = "certification"
+    OTHER = "other"
+
+
+class ResourceVisibility(str, Enum):
+    """Resource visibility levels"""
+    PUBLIC = "public"  # Available to everyone (including non-members)
+    MEMBERS_ONLY = "members_only"  # Only for members and above
+    INSTRUCTORS_ONLY = "instructors_only"  # Only for instructors and above
+    ADMIN_ONLY = "admin_only"  # Only for admins
+
+
+class ResourceStatus(str, Enum):
+    """Resource status"""
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
+class InstructorPerformance(BaseDocument):
+    """
+    Instructor performance metrics and analytics
+
+    Tracks key performance indicators for instructors including
+    classes taught, attendance rates, ratings, and feedback.
+    """
+    instructor_id: UUID = Field(..., description="Reference to users collection (instructor)")
+
+    # Performance Metrics
+    total_classes_taught: int = Field(default=0, ge=0, description="Total number of classes taught")
+    total_students_taught: int = Field(default=0, ge=0, description="Total unique students taught")
+    average_attendance_rate: float = Field(default=0.0, ge=0, le=100, description="Average attendance rate percentage")
+    average_class_rating: float = Field(default=0.0, ge=0, le=5, description="Average class rating (0-5)")
+    total_ratings_received: int = Field(default=0, ge=0, description="Total number of ratings received")
+
+    # Time Tracking
+    total_teaching_hours: float = Field(default=0.0, ge=0, description="Total hours spent teaching")
+    last_class_date: Optional[datetime] = Field(None, description="Date of last class taught")
+
+    # Engagement Metrics
+    total_chat_messages: int = Field(default=0, ge=0, description="Total chat messages sent")
+    total_resources_shared: int = Field(default=0, ge=0, description="Total resources shared with students")
+
+    # Quality Metrics
+    class_completion_rate: float = Field(default=0.0, ge=0, le=100, description="Percentage of classes completed as scheduled")
+    student_retention_rate: float = Field(default=0.0, ge=0, le=100, description="Percentage of students who return for multiple classes")
+
+    # Feedback
+    positive_feedback_count: int = Field(default=0, ge=0, description="Count of positive feedback items")
+    neutral_feedback_count: int = Field(default=0, ge=0, description="Count of neutral feedback items")
+    negative_feedback_count: int = Field(default=0, ge=0, description="Count of negative feedback items")
+
+    # Specialties and Disciplines
+    disciplines_taught: List[str] = Field(default_factory=list, description="List of disciplines taught")
+    certifications: List[str] = Field(default_factory=list, description="List of certifications held")
+
+    # Period Tracking
+    period_start_date: datetime = Field(default_factory=datetime.utcnow, description="Start date of tracking period")
+    period_end_date: Optional[datetime] = Field(None, description="End date of tracking period (null = current)")
+
+    # Metadata
+    notes: Optional[str] = Field(None, max_length=2000, description="Admin notes about instructor performance")
+    last_review_date: Optional[datetime] = Field(None, description="Date of last performance review")
+    next_review_date: Optional[datetime] = Field(None, description="Scheduled date for next review")
+
+
+class Resource(BaseDocument):
+    """
+    Training resource (video, document, PDF, etc.)
+
+    This model stores training materials, educational content, and resources
+    that students can access based on their role and membership status.
+    """
+    # Basic Information
+    title: str = Field(..., min_length=1, max_length=200, description="Resource title")
+    description: Optional[str] = Field(None, max_length=2000, description="Resource description")
+
+    # Categorization
+    category: ResourceCategory = Field(..., description="Resource category/type")
+    tags: List[str] = Field(default_factory=list, description="Tags for organization and search")
+
+    # File Information
+    file_url: Optional[str] = Field(None, description="URL to file (stored in ZeroDB Object Storage or Cloudflare)")
+    file_name: Optional[str] = Field(None, max_length=500, description="Original filename")
+    file_size_bytes: Optional[int] = Field(None, ge=0, description="File size in bytes")
+    file_type: Optional[str] = Field(None, max_length=100, description="MIME type")
+
+    # External Resources
+    external_url: Optional[HttpUrl] = Field(None, description="External URL (YouTube, Vimeo, etc.)")
+
+    # Cloudflare Stream Integration (for videos)
+    cloudflare_stream_id: Optional[str] = Field(None, description="Cloudflare Stream video ID")
+    video_duration_seconds: Optional[int] = Field(None, ge=0, description="Video duration in seconds")
+    thumbnail_url: Optional[str] = Field(None, description="Video thumbnail URL")
+
+    # Access Control
+    visibility: ResourceVisibility = Field(
+        default=ResourceVisibility.MEMBERS_ONLY,
+        description="Who can access this resource"
+    )
+    status: ResourceStatus = Field(
+        default=ResourceStatus.DRAFT,
+        description="Resource publication status"
+    )
+
+    # Publishing
+    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
+    published_by: Optional[UUID] = Field(None, description="Reference to users collection (publisher)")
+
+    # Ownership
+    created_by: UUID = Field(..., description="Reference to users collection (creator)")
+    updated_by: Optional[UUID] = Field(None, description="Reference to users collection (last updater)")
+
+    # Relationships
+    related_session_id: Optional[UUID] = Field(None, description="Reference to training_sessions collection")
+    related_event_id: Optional[UUID] = Field(None, description="Reference to events collection")
+    discipline: Optional[str] = Field(None, max_length=100, description="Martial arts discipline")
+
+    # Ordering and Priority
+    display_order: int = Field(default=0, ge=0, description="Order for display (lower = higher priority)")
+    is_featured: bool = Field(default=False, description="Featured resource (shown prominently)")
+
+    # Engagement Tracking
+    view_count: int = Field(default=0, ge=0, description="Number of times viewed")
+    download_count: int = Field(default=0, ge=0, description="Number of times downloaded")
+
+    # Metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+    @field_validator('file_url', 'external_url')
+    @classmethod
+    def validate_at_least_one_url(cls, v, info):
+        """Ensure at least one URL is provided (file_url or external_url)"""
+        # This validator will run for each field independently
+        # We'll check this logic in the route endpoint instead
+        return v
+
+
+# ============================================================================
+# ADMIN_SETTINGS COLLECTION - Persistent Admin Configuration
+# ============================================================================
+
+class AdminSettings(BaseDocument):
+    """
+    Persistent admin configuration settings
+
+    This model stores all admin-configurable settings including organization
+    information, email configuration, Stripe keys, and membership tiers.
+    Sensitive values are encrypted at rest.
+    """
+
+    # Organization Information
+    org_name: str = Field(default="WWMAA", max_length=200, description="Organization name")
+    org_email: EmailStr = Field(default="info@wwmaa.com", description="Organization contact email")
+    org_phone: Optional[str] = Field(None, max_length=20, description="Organization phone number")
+    org_address: Optional[str] = Field(None, max_length=500, description="Organization address")
+    org_website: Optional[HttpUrl] = Field(None, description="Organization website URL")
+    org_description: Optional[str] = Field(None, max_length=2000, description="Organization description")
+
+    # Email Configuration (SMTP)
+    smtp_host: Optional[str] = Field(None, max_length=255, description="SMTP server host")
+    smtp_port: Optional[int] = Field(None, ge=1, le=65535, description="SMTP server port")
+    smtp_username: Optional[str] = Field(None, max_length=255, description="SMTP username")
+    smtp_password_encrypted: Optional[str] = Field(None, description="SMTP password (encrypted)")
+    smtp_from_email: Optional[EmailStr] = Field(None, description="SMTP from email address")
+    smtp_from_name: Optional[str] = Field(None, max_length=200, description="SMTP from name")
+    smtp_use_tls: bool = Field(default=True, description="Use TLS for SMTP connection")
+    smtp_use_ssl: bool = Field(default=False, description="Use SSL for SMTP connection")
+
+    # Stripe Configuration
+    stripe_publishable_key: Optional[str] = Field(None, description="Stripe publishable key")
+    stripe_secret_key_encrypted: Optional[str] = Field(None, description="Stripe secret key (encrypted)")
+    stripe_webhook_secret_encrypted: Optional[str] = Field(None, description="Stripe webhook secret (encrypted)")
+    stripe_enabled: bool = Field(default=False, description="Stripe integration enabled")
+
+    # Membership Tiers Configuration
+    membership_tiers: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "basic": {
+                "name": "Basic",
+                "price": 29.99,
+                "currency": "USD",
+                "interval": "month",
+                "features": [
+                    "Access to training videos",
+                    "Community forum access",
+                    "Monthly newsletter"
+                ],
+                "stripe_price_id": None
+            },
+            "premium": {
+                "name": "Premium",
+                "price": 49.99,
+                "currency": "USD",
+                "interval": "month",
+                "features": [
+                    "All Basic features",
+                    "Live training sessions",
+                    "1-on-1 coaching sessions",
+                    "Advanced techniques library",
+                    "Priority support"
+                ],
+                "stripe_price_id": None
+            },
+            "lifetime": {
+                "name": "Lifetime",
+                "price": 999.99,
+                "currency": "USD",
+                "interval": "one_time",
+                "features": [
+                    "All Premium features",
+                    "Lifetime access",
+                    "Exclusive events access",
+                    "Certification programs",
+                    "VIP support"
+                ],
+                "stripe_price_id": None
+            }
+        },
+        description="Membership tier configurations"
+    )
+
+    # Email Test Tracking
+    last_email_test_at: Optional[datetime] = Field(None, description="Last email test timestamp")
+    last_email_test_result: Optional[str] = Field(None, max_length=50, description="Last email test result (success/failed)")
+    last_email_test_error: Optional[str] = Field(None, max_length=1000, description="Last email test error message")
+
+    # Metadata
+    settings_version: int = Field(default=1, ge=1, description="Settings schema version for migrations")
+    last_modified_by: Optional[UUID] = Field(None, description="Reference to users collection (admin who last modified)")
+
+    # Singleton pattern - there should only be one settings document
+    is_active: bool = Field(default=True, description="Whether this is the active settings document")
+
+    @field_validator('smtp_port')
+    @classmethod
+    def validate_smtp_port(cls, v):
+        """Validate SMTP port is in valid range"""
+        if v is not None and (v < 1 or v > 65535):
+            raise ValueError("SMTP port must be between 1 and 65535")
+        return v

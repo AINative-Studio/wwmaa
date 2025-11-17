@@ -31,7 +31,9 @@ router = APIRouter(
 )
 
 # Get service instance
-attendee_service = get_attendee_service()
+# NOTE: Commented out to prevent module-level DB connection during imports (breaks tests)
+# Use get_attendee_service() instead
+# attendee_service = get_attendee_service()
 
 
 # ============================================================================
@@ -126,7 +128,7 @@ async def list_attendees(
     try:
         logger.info(f"Listing attendees for event {event_id} by user {current_user['email']}")
 
-        result = attendee_service.get_attendees(
+        result = get_attendee_service().get_attendees(
             event_id=event_id,
             status=status,
             search=search,
@@ -173,7 +175,7 @@ async def export_attendees(
     try:
         logger.info(f"Exporting attendees for event {event_id} by user {current_user['email']}")
 
-        csv_content = attendee_service.export_attendees_csv(
+        csv_content = get_attendee_service().export_attendees_csv(
             event_id=event_id,
             status=status
         )
@@ -232,7 +234,7 @@ async def send_bulk_email(
     try:
         logger.info(f"Sending bulk email for event {event_id} by user {current_user['email']}")
 
-        result = attendee_service.send_bulk_email(
+        result = get_attendee_service().send_bulk_email(
             event_id=event_id,
             subject=request.subject,
             message=request.message,
@@ -282,7 +284,7 @@ async def check_in_attendee(
     try:
         logger.info(f"Checking in attendee {rsvp_id} for event {event_id} by user {current_user['email']}")
 
-        result = attendee_service.check_in_attendee(
+        result = get_attendee_service().check_in_attendee(
             rsvp_id=rsvp_id,
             checked_in_by=UUID(current_user["id"])
         )
@@ -333,7 +335,7 @@ async def mark_no_show(
     try:
         logger.info(f"Marking attendee {rsvp_id} as no-show for event {event_id} by user {current_user['email']}")
 
-        result = attendee_service.mark_no_show(
+        result = get_attendee_service().mark_no_show(
             rsvp_id=rsvp_id,
             marked_by=UUID(current_user["id"])
         )
@@ -384,7 +386,7 @@ async def promote_from_waitlist(
     try:
         logger.info(f"Promoting {request.count} from waitlist for event {event_id} by user {current_user['email']}")
 
-        result = attendee_service.promote_from_waitlist(
+        result = get_attendee_service().promote_from_waitlist(
             event_id=event_id,
             count=request.count
         )
@@ -431,7 +433,7 @@ async def get_attendee_stats(
     try:
         logger.info(f"Getting attendee stats for event {event_id} by user {current_user['email']}")
 
-        stats = attendee_service.get_attendee_stats(event_id=event_id)
+        stats = get_attendee_service().get_attendee_stats(event_id=event_id)
 
         return stats
 

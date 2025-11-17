@@ -69,6 +69,7 @@ export function EventCard({ event }: EventCardProps) {
       href={`/events/${event.id}`}
       className="group block h-full bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
       aria-label={`View details for ${event.title}`}
+      data-testid="event-card"
     >
       {/* Event Image */}
       <div className="relative h-48 bg-gradient-to-br from-dojo-navy/5 to-dojo-green/5 overflow-hidden">
@@ -142,7 +143,7 @@ export function EventCard({ event }: EventCardProps) {
           {/* Date */}
           <div className="flex items-start gap-2 text-gray-700">
             <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <span>{formattedDate}</span>
+            <time dateTime={event.start}>{formattedDate}</time>
           </div>
 
           {/* Location */}

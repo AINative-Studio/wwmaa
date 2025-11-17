@@ -100,11 +100,11 @@ export function UserMenu() {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          onClick={() => router.push("/dashboard/profile")}
+          onClick={() => router.push("/profile")}
           className="cursor-pointer"
         >
           <User className="mr-2 h-4 w-4" />
-          Profile
+          My Profile
         </DropdownMenuItem>
 
         <DropdownMenuItem
@@ -115,15 +115,13 @@ export function UserMenu() {
           {user.role === "admin" ? "Admin Panel" : "Dashboard"}
         </DropdownMenuItem>
 
-        {/* TODO: Implement settings page
         <DropdownMenuItem
-          onClick={() => router.push("/dashboard/settings")}
+          onClick={() => router.push("/settings")}
           className="cursor-pointer"
         >
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>
-        */}
 
         <DropdownMenuSeparator />
 

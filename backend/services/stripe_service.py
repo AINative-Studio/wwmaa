@@ -465,6 +465,139 @@ class StripeService:
             logger.error(f"Error processing payment: {e}")
             raise SubscriptionError(f"Payment processing error: {str(e)}")
 
+    def create_renewal_checkout_session(
+        self,
+        user_id: str,
+        tier_id: str,
+        subscription_id: str,
+        customer_email: Optional[str] = None,
+        stripe_customer_id: Optional[str] = None,
+        success_url: Optional[str] = None,
+        cancel_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a Stripe Checkout session for membership renewal
+
+        Args:
+            user_id: UUID of the user
+            tier_id: Current subscription tier ID (basic, premium, lifetime)
+            subscription_id: UUID of the current subscription to renew
+            customer_email: User's email address
+            stripe_customer_id: Existing Stripe customer ID (if available)
+            success_url: URL to redirect after successful payment
+            cancel_url: URL to redirect after canceled payment
+
+        Returns:
+            Dict containing:
+            - session_id: Stripe checkout session ID
+            - url: Checkout session URL
+            - amount: Payment amount in cents
+            - currency: Payment currency
+            - tier: Subscription tier
+            - mode: Payment mode
+
+        Raises:
+            CheckoutSessionError: If session creation fails
+            ValueError: If tier_id is invalid or is free tier
+        """
+        try:
+            # Validate tier
+            if tier_id not in [tier.value for tier in SubscriptionTier]:
+                raise ValueError(f"Invalid tier_id: {tier_id}")
+
+            tier = SubscriptionTier(tier_id)
+
+            # Free and lifetime tiers cannot be renewed
+            if tier == SubscriptionTier.FREE:
+                raise ValueError("Free tier cannot be renewed")
+
+            if tier == SubscriptionTier.LIFETIME:
+                raise ValueError("Lifetime tier does not require renewal")
+
+            # Get pricing
+            amount = TIER_PRICING[tier]
+
+            # Set default URLs if not provided
+            if not success_url:
+                frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+                success_url = f"{frontend_url}/dashboard/student?renewal=success&session_id={{CHECKOUT_SESSION_ID}}"
+
+            if not cancel_url:
+                frontend_url = settings.PYTHON_BACKEND_URL.replace(":8000", ":3000")
+                cancel_url = f"{frontend_url}/dashboard/student?renewal=cancelled"
+
+            # Prepare line items for annual renewal
+            tier_name = MEMBERSHIP_TIER_NAMES.get(tier, "Basic" if tier == SubscriptionTier.BASIC else "Premium")
+            line_items = [{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": f"WWMAA {tier_name} - Renewal",
+                        "description": f"{tier_name} membership renewal - Annual billing (US-021)",
+                    },
+                    "unit_amount": amount,
+                    "recurring": {
+                        "interval": "year",  # Annual billing per US-021
+                    },
+                },
+                "quantity": 1,
+            }]
+
+            # Create checkout session parameters
+            session_params = {
+                "mode": "subscription",
+                "line_items": line_items,
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "client_reference_id": user_id,
+                "metadata": {
+                    "user_id": user_id,
+                    "subscription_id": subscription_id,
+                    "tier_id": tier_id,
+                    "type": "renewal"  # Mark as renewal for webhook processing
+                },
+                "payment_method_types": ["card"],
+                "expires_at": int((datetime.utcnow().timestamp()) + 1800),  # 30 minutes
+            }
+
+            # Add customer information
+            if customer_email:
+                session_params["customer_email"] = customer_email
+
+            # If user has existing Stripe customer ID, use it
+            if stripe_customer_id:
+                session_params["customer"] = stripe_customer_id
+                # Remove customer_email if we have customer ID
+                session_params.pop("customer_email", None)
+
+            # Create checkout session
+            session = stripe.checkout.Session.create(**session_params)
+
+            logger.info(
+                f"Renewal checkout session created: {session.id} for user {user_id}, "
+                f"tier {tier_id}, amount ${amount/100:.2f}"
+            )
+
+            return {
+                "session_id": session.id,
+                "url": session.url,
+                "amount": amount,
+                "currency": "usd",
+                "tier": tier_id,
+                "mode": "subscription",
+                "expires_at": session.expires_at
+            }
+
+        except StripeError as e:
+            logger.error(f"Stripe API error creating renewal checkout session: {e}")
+            raise CheckoutSessionError(f"Failed to create renewal checkout session: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Validation error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error creating renewal checkout session: {e}")
+            raise CheckoutSessionError(f"Unexpected error: {str(e)}")
+
     def get_tier_pricing(self, tier: str) -> Dict[str, Any]:
         """
         Get pricing information for a tier

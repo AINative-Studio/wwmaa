@@ -26,9 +26,75 @@ export const api = {
     // Backend returns {tiers: [...]} so extract the array
     return data.tiers || data;
   },
-  async getCurrentUser(): Promise<User> {
-    const r = await fetch(LIVE.me, { credentials: "include" });
+  async getCurrentUser(token?: string): Promise<User> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const r = await fetch(LIVE.me, {
+      credentials: "include",
+      headers
+    });
     if (!r.ok) throw new Error(`Failed to fetch user: ${r.status} ${r.statusText}`);
+    return r.json();
+  },
+  async updateProfile(profileData: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    country?: string;
+    emergency_contact?: {
+      name: string;
+      relationship: string;
+      phone: string;
+      email?: string;
+    };
+  }): Promise<{ message: string; user: any }> {
+    const token = getToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const r = await fetch(`${API_URL}/api/me/profile`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify(profileData),
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to update profile' }));
+      throw new Error(error.detail || `Failed to update profile: ${r.status}`);
+    }
+    return r.json();
+  },
+  async uploadProfilePhoto(file: File): Promise<{ message: string; photo_url: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const r = await fetch(`${API_URL}/api/me/profile/photo`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: formData,
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to upload photo' }));
+      throw new Error(error.detail || `Failed to upload photo: ${r.status}`);
+    }
     return r.json();
   },
   async submitApplication(payload: Partial<Application>): Promise<{ ok: boolean; id: string }> {
@@ -186,41 +252,111 @@ export const adminApi = {
     }
   },
 
-  // Members Management (placeholder - backend endpoints to be created)
-  async getMembers(): Promise<User[]> {
-    // TODO: Backend endpoint needed for listing all users
-    // For now, return empty array
-    return [];
+  // Members Management
+  async getMembers(params?: {
+    limit?: number;
+    offset?: number;
+    role?: string;
+    is_active?: boolean;
+    search?: string;
+  }): Promise<{ members: User[]; total: number; limit: number; offset: number }> {
+    const token = getToken();
+    const queryParams = new URLSearchParams();
+
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+    if (params?.role) queryParams.append('role', params.role);
+    if (params?.is_active !== undefined) queryParams.append('is_active', params.is_active.toString());
+    if (params?.search) queryParams.append('search', params.search);
+
+    const url = `${API_URL}/api/admin/members${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+    const r = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to fetch members' }));
+      throw new Error(error.detail || `Failed to fetch members: ${r.status}`);
+    }
+
+    return r.json();
   },
 
   async createMember(memberData: {
     email: string;
-    name: string;
+    first_name: string;
+    last_name: string;
     password: string;
     role?: string;
-    belt_rank?: string;
-    dojo?: string;
-    country?: string;
+    is_active?: boolean;
+    phone?: string;
   }): Promise<User> {
-    // TODO: Backend endpoint needed for creating users
-    // For now, throw error indicating feature not yet implemented
-    throw new Error('Create member endpoint not yet implemented in backend');
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/members`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(memberData),
+    });
+
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to create member' }));
+      throw new Error(error.detail || `Failed to create member: ${r.status}`);
+    }
+
+    return r.json();
   },
 
   async updateMember(id: string, memberData: {
-    name?: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
     role?: string;
-    belt_rank?: string;
-    dojo?: string;
-    country?: string;
+    is_active?: boolean;
+    phone?: string;
+    password?: string;
   }): Promise<User> {
-    // TODO: Backend endpoint needed for updating users
-    throw new Error('Update member endpoint not yet implemented in backend');
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/members/${id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(memberData),
+    });
+
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to update member' }));
+      throw new Error(error.detail || `Failed to update member: ${r.status}`);
+    }
+
+    return r.json();
   },
 
   async deleteMember(id: string): Promise<void> {
-    // TODO: Backend endpoint needed for deleting users
-    throw new Error('Delete member endpoint not yet implemented in backend');
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/members/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to delete member' }));
+      throw new Error(error.detail || `Failed to delete member: ${r.status}`);
+    }
   },
 
   // Metrics/Analytics

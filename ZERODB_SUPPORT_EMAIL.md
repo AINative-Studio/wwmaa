@@ -2,6 +2,8 @@
 
 ---
 
+
+
 **Subject:** Critical Production Issue - Database Operations Returning 500 Errors ("super(): no arguments")
 
 ---

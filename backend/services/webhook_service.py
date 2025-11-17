@@ -297,15 +297,21 @@ class WebhookService:
         """
         Handle checkout.session.completed event
 
-        Handles both:
-        - Membership subscriptions (existing logic)
-        - Event RSVP payments (new logic for US-032)
+        Handles:
+        - Membership subscriptions (initial purchase)
+        - Membership renewals (extending existing subscription)
+        - Event RSVP payments (for paid events)
 
         Actions for membership:
         1. Create subscription in ZeroDB
         2. Activate membership
         3. Upgrade user role to 'member'
         4. Send welcome/confirmation email
+
+        Actions for renewal:
+        1. Extend current subscription end date
+        2. Update Stripe subscription ID
+        3. Send renewal confirmation email
 
         Actions for event RSVP:
         1. Create RSVP record in ZeroDB
@@ -332,6 +338,8 @@ class WebhookService:
         # Route to appropriate handler based on payment type
         if payment_type == "event_rsvp":
             return self._handle_event_rsvp_payment(session)
+        elif payment_type == "renewal":
+            return self._handle_renewal_payment(session)
 
         # Default to membership payment handling (existing logic)
 
@@ -965,6 +973,179 @@ class WebhookService:
             "refund_amount": refund_amount,
             "user_id": user_id
         }
+
+    def _handle_renewal_payment(self, session: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle successful payment for membership renewal
+
+        Actions:
+        1. Find existing subscription by ID from metadata
+        2. Extend subscription end date by 1 year
+        3. Update Stripe subscription ID
+        4. Update subscription status to 'active'
+        5. Create payment record for transaction history
+        6. Send renewal confirmation email
+
+        Args:
+            session: Stripe checkout session data
+
+        Returns:
+            Processing result with renewal details
+
+        Raises:
+            WebhookProcessingError: If renewal processing fails
+        """
+        from dateutil.relativedelta import relativedelta
+
+        metadata = session.get("metadata", {})
+        user_id = metadata.get("user_id")
+        zerodb_subscription_id = metadata.get("subscription_id")
+        tier_id = metadata.get("tier_id")
+        stripe_subscription_id = session.get("subscription")
+        amount_total = session.get("amount_total", 0) / 100  # Convert cents to dollars
+
+        if not user_id or not zerodb_subscription_id:
+            error_msg = "Missing user_id or subscription_id in renewal session metadata"
+            logger.error(error_msg)
+            raise WebhookProcessingError(error_msg)
+
+        logger.info(f"Processing renewal payment for user {user_id}, subscription {zerodb_subscription_id}")
+
+        try:
+            # Get existing subscription from ZeroDB
+            subscription_result = self.db.get_document("subscriptions", zerodb_subscription_id)
+            subscription = subscription_result.get("data", {})
+
+            if not subscription:
+                raise WebhookProcessingError(f"Subscription {zerodb_subscription_id} not found")
+
+            # Get user details
+            user_result = self.db.get_document("users", user_id)
+            user = user_result.get("data", {})
+
+            if not user:
+                raise WebhookProcessingError(f"User {user_id} not found")
+
+            # Calculate new end date (extend by 1 year from current end date or now)
+            current_end_date = subscription.get("end_date")
+            now = datetime.utcnow()
+
+            if current_end_date:
+                # Parse current end date
+                if isinstance(current_end_date, str):
+                    try:
+                        current_end_date = datetime.fromisoformat(current_end_date.replace("Z", "+00:00"))
+                    except ValueError:
+                        current_end_date = now
+                elif isinstance(current_end_date, (int, float)):
+                    # Unix timestamp
+                    current_end_date = datetime.fromtimestamp(current_end_date)
+
+                # If current subscription is already expired, start from now
+                if current_end_date < now:
+                    new_end_date = now + relativedelta(years=1)
+                else:
+                    # Extend from current end date
+                    new_end_date = current_end_date + relativedelta(years=1)
+            else:
+                # No end date set, start from now
+                new_end_date = now + relativedelta(years=1)
+
+            # Update subscription in ZeroDB
+            update_data = {
+                "status": SubscriptionStatus.ACTIVE.value,
+                "end_date": new_end_date.isoformat(),
+                "stripe_subscription_id": stripe_subscription_id,
+                "canceled_at": None,  # Clear cancellation if previously canceled
+                "updated_at": now.isoformat(),
+                "metadata": {
+                    **subscription.get("metadata", {}),
+                    "renewed_at": now.isoformat(),
+                    "renewal_session_id": session.get("id")
+                }
+            }
+
+            self.db.update_document(
+                "subscriptions",
+                zerodb_subscription_id,
+                update_data,
+                merge=True
+            )
+
+            logger.info(
+                f"Updated subscription {zerodb_subscription_id} with new end date: {new_end_date.isoformat()}"
+            )
+
+            # Create payment record for renewal
+            payment_data = {
+                "user_id": user_id,
+                "subscription_id": zerodb_subscription_id,
+                "amount": amount_total,
+                "currency": session.get("currency", "usd").upper(),
+                "status": PaymentStatus.SUCCEEDED.value,
+                "stripe_payment_intent_id": session.get("payment_intent"),
+                "stripe_charge_id": None,  # Will be populated from payment_intent
+                "payment_method": "card",
+                "description": f"Membership renewal: {tier_id} tier",
+                "processed_at": now.isoformat(),
+                "metadata": {
+                    "type": "renewal",
+                    "subscription_id": zerodb_subscription_id,
+                    "tier_id": tier_id,
+                    "checkout_session_id": session.get("id"),
+                    "new_end_date": new_end_date.isoformat()
+                }
+            }
+
+            payment_result = self.db.create_document("payments", payment_data)
+            payment_id = payment_result.get("id")
+
+            logger.info(f"Created payment record {payment_id} for renewal")
+
+            # Send renewal confirmation email
+            try:
+                self.email_service.send_renewal_confirmation_email(
+                    email=user.get("email"),
+                    user_name=f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Member",
+                    tier=tier_id,
+                    amount=amount_total,
+                    currency="USD",
+                    new_expiry_date=new_end_date.strftime("%B %d, %Y")
+                )
+                logger.info(f"Sent renewal confirmation email to {user.get('email')}")
+            except Exception as e:
+                logger.error(f"Failed to send renewal confirmation email: {e}")
+                # Don't fail webhook if email fails
+
+            # Create audit log
+            self._create_audit_log(
+                action=AuditAction.PAYMENT.value,
+                resource_type="subscriptions",
+                resource_id=zerodb_subscription_id,
+                description=f"Membership renewed: ${amount_total} for {tier_id} tier, new expiry: {new_end_date.strftime('%Y-%m-%d')}",
+                user_id=user_id,
+                changes={
+                    "payment_id": payment_id,
+                    "old_end_date": subscription.get("end_date"),
+                    "new_end_date": new_end_date.isoformat(),
+                    "amount": amount_total
+                }
+            )
+
+            return {
+                "status": "success",
+                "action": "renewal_payment",
+                "subscription_id": zerodb_subscription_id,
+                "payment_id": payment_id,
+                "user_id": user_id,
+                "tier": tier_id,
+                "amount": amount_total,
+                "new_end_date": new_end_date.isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing renewal payment: {e}")
+            raise WebhookProcessingError(f"Failed to process renewal payment: {str(e)}")
 
     def _handle_event_rsvp_payment(self, session: Dict[str, Any]) -> Dict[str, Any]:
         """

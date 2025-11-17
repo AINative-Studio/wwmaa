@@ -341,6 +341,126 @@ async def get_payment(
         )
 
 
+@router.post("/create-renewal-session")
+async def create_renewal_session(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Create a Stripe Checkout session for membership renewal
+
+    Validates user has an active or expiring membership and creates
+    a checkout session to renew at the current tier.
+
+    Returns:
+        Checkout session URL and details
+
+    Raises:
+        401: User not authenticated
+        400: User has no active membership to renew
+        500: Stripe API error
+    """
+    try:
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID not found in token"
+            )
+
+        logger.info(f"Creating renewal session for user {user_id}")
+
+        # Get ZeroDB client
+        zerodb = get_zerodb_client()
+
+        # Find user's current active subscription
+        result = zerodb.query_documents(
+            collection="subscriptions",
+            filters={
+                "user_id": {"$eq": str(user_id)},
+                "status": {"$in": ["active", "past_due"]}
+            },
+            sort={"created_at": "desc"},
+            limit=1
+        )
+
+        subscriptions = result.get("documents", [])
+        if not subscriptions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active membership found to renew. Please purchase a new membership."
+            )
+
+        current_subscription = subscriptions[0]
+        tier = current_subscription.get("tier")
+
+        # Validate tier is renewable (not free)
+        if tier == "free":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Free tier memberships cannot be renewed"
+            )
+
+        logger.info(f"Found active subscription for user {user_id}, tier: {tier}")
+
+        # Get user email for checkout
+        try:
+            user_result = zerodb.get_document("users", user_id)
+            user = user_result.get("data", {})
+            customer_email = user.get("email")
+            stripe_customer_id = user.get("stripe_customer_id")
+        except Exception as e:
+            logger.error(f"Error fetching user data: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch user information"
+            )
+
+        # Import Stripe service
+        from backend.services.stripe_service import get_stripe_service
+        stripe_service = get_stripe_service()
+
+        # Create renewal checkout session
+        try:
+            session_data = stripe_service.create_renewal_checkout_session(
+                user_id=user_id,
+                tier_id=tier,
+                subscription_id=current_subscription.get("id"),
+                customer_email=customer_email,
+                stripe_customer_id=stripe_customer_id
+            )
+
+            logger.info(
+                f"Renewal checkout session created: {session_data.get('session_id')} "
+                f"for user {user_id}, tier {tier}"
+            )
+
+            return {
+                "session_id": session_data.get("session_id"),
+                "url": session_data.get("url"),
+                "amount": session_data.get("amount"),
+                "currency": session_data.get("currency"),
+                "tier": tier,
+                "mode": session_data.get("mode"),
+                "expires_at": session_data.get("expires_at")
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to create renewal checkout session: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create renewal checkout session: {str(e)}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in create_renewal_session: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
+
+
 @router.get("/export/csv")
 async def export_payments_csv(
     start_date: Optional[str] = Query(None, description="Start date filter (ISO 8601)"),
