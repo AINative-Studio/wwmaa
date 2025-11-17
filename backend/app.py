@@ -41,6 +41,7 @@ from backend.routes.admin import analytics
 from backend.routes.admin import members
 from backend.routes.admin import settings as admin_settings_routes
 from backend.routes.admin import instructors
+from backend.routes.admin import board_approval
 from backend.routes.webhooks import beehiiv
 from backend.middleware.metrics_middleware import MetricsMiddleware, get_request_id
 from backend.middleware.security_headers import SecurityHeadersMiddleware
@@ -263,6 +264,7 @@ app.include_router(analytics.router)  # Admin analytics dashboard
 app.include_router(members.router)  # Admin members management
 app.include_router(admin_settings_routes.router)  # Admin settings management
 app.include_router(instructors.router)  # Admin instructor management
+app.include_router(board_approval.router)  # Admin board approval workflow
 
 
 @app.on_event("startup")
