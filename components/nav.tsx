@@ -30,6 +30,8 @@ export function Nav() {
     switch (user.role) {
       case "admin":
         return "/dashboard/admin";
+      case "board_member":
+        return "/dashboard/board";
       case "instructor":
         return "/dashboard/instructor";
       case "student":
