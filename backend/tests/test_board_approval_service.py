@@ -60,6 +60,8 @@ def sample_application():
         first_name="John",
         last_name="Doe",
         email="john@example.com",
+        disciplines=["Karate", "Judo"],
+        experience_years=5,
         subscription_tier=SubscriptionTier.FREE,
         approval_count=0,
         required_approvals=2,
@@ -522,6 +524,280 @@ class TestApprovalWorkflow:
         assert result["vote"] == "REJECTED"
         assert result["application_status"] == ApplicationStatus.REJECTED
         assert result["fully_approved"] == False
+
+
+class TestEmailNotifications:
+    """Test email notification helper methods"""
+
+    def test_notify_board_members_new_application(self, approval_service, mock_zerodb_client, sample_application):
+        """Test board member notification on new application"""
+        # Setup - sample_application already has first_name, last_name, email
+        board_member_ids = [uuid4(), uuid4()]
+
+        # Create a function to return different users based on filter
+        def mock_query_table(table_name, filter=None, **kwargs):
+            if table_name == "users" and filter and "id" in filter:
+                user_id = filter["id"]
+                if user_id == str(board_member_ids[0]):
+                    return {"rows": [{"id": user_id, "email": "board1@example.com", "role": "board_member", "password_hash": "hashed", "is_active": True, "is_verified": True}]}
+                elif user_id == str(board_member_ids[1]):
+                    return {"rows": [{"id": user_id, "email": "board2@example.com", "role": "board_member", "password_hash": "hashed", "is_active": True, "is_verified": True}]}
+            return {"rows": []}
+
+        mock_zerodb_client.query_table.side_effect = mock_query_table
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute
+            approval_service._notify_board_members_new_application(sample_application, board_member_ids)
+
+            # Verify email service was called for each board member
+            assert mock_email_service.send_board_member_new_application_notification.call_count == 2
+
+    def test_notify_board_members_email_failure(self, approval_service, mock_zerodb_client, sample_application):
+        """Test board member notification handles email failures gracefully"""
+        # Setup - sample_application already has first_name, last_name, email
+        board_member_ids = [uuid4()]
+
+        # Mock User lookup
+        def mock_query_table(table_name, filter=None, **kwargs):
+            if table_name == "users" and filter and "id" in filter:
+                return {"rows": [{"id": str(board_member_ids[0]), "email": "board1@example.com", "role": "board_member", "password_hash": "hashed", "is_active": True, "is_verified": True}]}
+            return {"rows": []}
+
+        mock_zerodb_client.query_table.side_effect = mock_query_table
+
+        # Mock email service to raise exception
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_email_service.send_board_member_new_application_notification.side_effect = Exception("Email error")
+            mock_get_email.return_value = mock_email_service
+
+            # Execute - should not raise exception
+            approval_service._notify_board_members_new_application(sample_application, board_member_ids)
+
+            # Verify email was attempted
+            assert mock_email_service.send_board_member_new_application_notification.called
+
+    def test_notify_applicant_first_approval(self, approval_service, mock_zerodb_client, sample_application):
+        """Test applicant notification on first approval"""
+        # Setup - sample_application already has first_name, last_name, email
+        board_member_id = uuid4()
+        sample_application.approval_count = 1
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute
+            approval_service._notify_applicant_first_approval(sample_application, board_member_id)
+
+            # Verify
+            mock_email_service.send_application_first_approval_email.assert_called_once()
+            call_args = mock_email_service.send_application_first_approval_email.call_args[1]
+            assert call_args['email'] == sample_application.email
+            assert call_args['applicant_name'] == f"{sample_application.first_name} {sample_application.last_name}"
+            assert call_args['approvals_count'] == 1
+
+    def test_notify_applicant_first_approval_email_failure(self, approval_service, sample_application):
+        """Test first approval notification handles email failures"""
+        # Setup - sample_application already has required fields
+        board_member_id = uuid4()
+        sample_application.approval_count = 1
+
+        # Mock email service to raise exception
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_email_service.send_application_first_approval_email.side_effect = Exception("Email error")
+            mock_get_email.return_value = mock_email_service
+
+            # Execute - should not raise exception
+            approval_service._notify_applicant_first_approval(sample_application, board_member_id)
+
+            # Verify email was attempted
+            assert mock_email_service.send_application_first_approval_email.called
+
+    def test_notify_applicant_fully_approved(self, approval_service, sample_application):
+        """Test applicant notification on full approval"""
+        # Setup - sample_application already has required fields
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute
+            approval_service._notify_applicant_fully_approved(sample_application)
+
+            # Verify
+            mock_email_service.send_application_fully_approved_email.assert_called_once()
+            call_args = mock_email_service.send_application_fully_approved_email.call_args[1]
+            assert call_args['email'] == sample_application.email
+            assert call_args['applicant_name'] == f"{sample_application.first_name} {sample_application.last_name}"
+
+    def test_notify_applicant_fully_approved_email_failure(self, approval_service, sample_application):
+        """Test full approval notification handles email failures"""
+        # Setup - sample_application already has required fields
+
+        # Mock email service to raise exception
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_email_service.send_application_fully_approved_email.side_effect = Exception("Email error")
+            mock_get_email.return_value = mock_email_service
+
+            # Execute - should not raise exception
+            approval_service._notify_applicant_fully_approved(sample_application)
+
+            # Verify email was attempted
+            assert mock_email_service.send_application_fully_approved_email.called
+
+    def test_notify_applicant_rejection(self, approval_service, sample_application):
+        """Test applicant notification on rejection"""
+        # Setup - sample_application already has required fields
+        notes = "Not meeting minimum requirements"
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute
+            approval_service._notify_applicant_rejection(sample_application, notes)
+
+            # Verify
+            mock_email_service.send_application_rejected_email.assert_called_once()
+            call_args = mock_email_service.send_application_rejected_email.call_args[1]
+            assert call_args['email'] == sample_application.email
+            assert call_args['applicant_name'] == f"{sample_application.first_name} {sample_application.last_name}"
+            assert call_args['rejection_reason'] == notes
+
+    def test_notify_applicant_rejection_no_notes(self, approval_service, sample_application):
+        """Test applicant rejection notification with default message"""
+        # Setup - sample_application already has required fields
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute with None notes
+            approval_service._notify_applicant_rejection(sample_application, None)
+
+            # Verify default message used
+            call_args = mock_email_service.send_application_rejected_email.call_args[1]
+            assert call_args['rejection_reason'] == "Your application did not meet the current membership criteria."
+
+    def test_notify_applicant_rejection_email_failure(self, approval_service, sample_application):
+        """Test rejection notification handles email failures"""
+        # Setup - sample_application already has required fields
+
+        # Mock email service to raise exception
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_email_service.send_application_rejected_email.side_effect = Exception("Email error")
+            mock_get_email.return_value = mock_email_service
+
+            # Execute - should not raise exception
+            approval_service._notify_applicant_rejection(sample_application, "Rejected")
+
+            # Verify email was attempted
+            assert mock_email_service.send_application_rejected_email.called
+
+    def test_notify_board_members_with_profile(self, approval_service, mock_zerodb_client, sample_application):
+        """Test board member notification with profile lookup"""
+        # Setup
+        board_member_id = uuid4()
+        profile_id = uuid4()
+
+        # Mock User and Profile lookups
+        def mock_query_table(table_name, filter=None, **kwargs):
+            if table_name == "users" and filter and "id" in filter:
+                return {
+                    "rows": [{
+                        "id": str(board_member_id),
+                        "email": "board@example.com",
+                        "role": "board_member",
+                        "password_hash": "hashed",
+                        "is_active": True,
+                        "is_verified": True,
+                        "profile_id": str(profile_id)
+                    }]
+                }
+            elif table_name == "profiles" and filter and "id" in filter:
+                return {
+                    "rows": [{
+                        "id": str(profile_id),
+                        "first_name": "Board",
+                        "last_name": "Member"
+                    }]
+                }
+            return {"rows": []}
+
+        mock_zerodb_client.query_table.side_effect = mock_query_table
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute
+            approval_service._notify_board_members_new_application(sample_application, [board_member_id])
+
+            # Verify email service was called with profile name
+            assert mock_email_service.send_board_member_new_application_notification.called
+            call_args = mock_email_service.send_board_member_new_application_notification.call_args[1]
+            assert call_args['board_member_name'] == "Board Member"
+
+    def test_notify_board_members_not_found(self, approval_service, mock_zerodb_client, sample_application):
+        """Test board member notification when board member not found in database"""
+        # Setup - board member doesn't exist
+        board_member_id = uuid4()
+
+        # Mock User lookup returns empty rows
+        mock_zerodb_client.query_table.return_value = {"rows": []}
+
+        # Mock email service
+        with patch('backend.services.board_approval_service.get_email_service') as mock_get_email:
+            mock_email_service = Mock()
+            mock_get_email.return_value = mock_email_service
+
+            # Execute - should handle gracefully and not send email
+            approval_service._notify_board_members_new_application(sample_application, [board_member_id])
+
+            # Verify email service was NOT called (board member not found)
+            assert not mock_email_service.send_board_member_new_application_notification.called
+
+
+class TestErrorHandlingEdgeCases:
+    """Test error handling edge cases"""
+
+    def test_get_pending_applications_database_error(self, approval_service, mock_zerodb_client):
+        """Test get_pending_applications handles database errors"""
+        # Setup
+        board_member_id = uuid4()
+
+        # Mock database error
+        mock_zerodb_client.query_table.side_effect = Exception("Database connection failed")
+
+        # Execute and verify exception raised
+        with pytest.raises(BoardApprovalError, match="Failed to get pending applications"):
+            approval_service.get_pending_applications_for_board_member(board_member_id)
+
+    def test_get_board_member_stats_database_error(self, approval_service, mock_zerodb_client):
+        """Test get_board_member_stats handles database errors"""
+        # Setup
+        board_member_id = uuid4()
+
+        # Mock database error
+        mock_zerodb_client.query_table.side_effect = Exception("Database connection failed")
+
+        # Execute and verify exception raised
+        with pytest.raises(BoardApprovalError, match="Failed to get stats"):
+            approval_service.get_board_member_stats(board_member_id)
 
 
 if __name__ == "__main__":

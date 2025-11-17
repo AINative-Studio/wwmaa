@@ -499,13 +499,14 @@ class BoardApprovalService:
                             logger.warning(f"Could not fetch profile for board member {board_member_id}: {e}")
 
                     # Send notification email
+                    martial_arts_style = ", ".join(application.disciplines) if application.disciplines else "Not specified"
                     email_service.send_board_member_new_application_notification(
                         email=user.email,
                         board_member_name=profile_name,
                         applicant_name=f"{application.first_name} {application.last_name}",
                         applicant_email=application.email,
-                        martial_arts_style=application.martial_arts_style or "Not specified",
-                        years_experience=application.years_experience or 0
+                        martial_arts_style=martial_arts_style,
+                        years_experience=application.experience_years or 0
                     )
 
                     logger.info(f"Sent new application notification to board member {user.email}")
