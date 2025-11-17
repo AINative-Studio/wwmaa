@@ -376,3 +376,102 @@ export const adminApi = {
     };
   },
 };
+
+// Board Approval API namespace
+export const boardApi = {
+  // Get pending applications for current board member
+  async getPendingApplications(): Promise<any[]> {
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/board/applications/pending`, {
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      }
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to fetch pending applications' }));
+      throw new Error(error.detail || `Failed to fetch pending applications: ${r.status}`);
+    }
+    return r.json();
+  },
+
+  // Cast vote on an application
+  async castVote(applicationId: string, action: 'APPROVE' | 'REJECT', notes?: string): Promise<{
+    application_id: string;
+    vote: string;
+    approval_count: number;
+    required_approvals: number;
+    application_status: string;
+    fully_approved: boolean;
+    message: string;
+  }> {
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/board/applications/${applicationId}/vote`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, notes }),
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to cast vote' }));
+      throw new Error(error.detail || `Failed to cast vote: ${r.status}`);
+    }
+    return r.json();
+  },
+
+  // Get vote history for an application
+  async getVoteHistory(applicationId: string): Promise<{
+    application_id: string;
+    votes: Array<{
+      id: string;
+      approver_id: string;
+      action: string;
+      status: string;
+      vote_cast_at: string;
+      sequence: number;
+      notes?: string;
+    }>;
+    total_votes: number;
+  }> {
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/board/applications/${applicationId}/votes`, {
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      }
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to fetch vote history' }));
+      throw new Error(error.detail || `Failed to fetch vote history: ${r.status}`);
+    }
+    return r.json();
+  },
+
+  // Get board member statistics
+  async getBoardStats(): Promise<{
+    board_member_id: string;
+    total_votes: number;
+    approved: number;
+    rejected: number;
+    pending: number;
+  }> {
+    const token = getToken();
+    const r = await fetch(`${API_URL}/api/admin/board/stats`, {
+      credentials: 'include',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      }
+    });
+    if (!r.ok) {
+      const error = await r.json().catch(() => ({ detail: 'Failed to fetch board statistics' }));
+      throw new Error(error.detail || `Failed to fetch board statistics: ${r.status}`);
+    }
+    return r.json();
+  },
+};
