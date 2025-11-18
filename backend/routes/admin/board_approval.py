@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from backend.services.board_approval_service import (
     get_board_approval_service,
+    BoardApprovalService,
     BoardApprovalError,
     AlreadyVotedError,
     InvalidStatusError
@@ -214,7 +215,8 @@ class BoardStatsResponse(BaseModel):
     }
 )
 async def get_pending_applications(
-    current_user: User = Depends(require_board_member)
+    current_user: User = Depends(require_board_member),
+    service: BoardApprovalService = Depends(get_board_approval_service)
 ) -> List[PendingApplicationResponse]:
     """
     Get applications pending this board member's vote.
@@ -226,12 +228,12 @@ async def get_pending_applications(
 
     Args:
         current_user: Currently authenticated board member
+        service: Board approval service instance
 
     Returns:
         List of pending applications
     """
     try:
-        service = get_board_approval_service()
         applications = service.get_pending_applications_for_board_member(current_user.id)
 
         logger.info(
@@ -291,7 +293,8 @@ async def get_pending_applications(
 async def cast_vote(
     application_id: UUID,
     vote_request: VoteRequest,
-    current_user: User = Depends(require_board_member)
+    current_user: User = Depends(require_board_member),
+    service: BoardApprovalService = Depends(get_board_approval_service)
 ) -> VoteResponse:
     """
     Cast a vote (approve/reject) on an application.
@@ -306,6 +309,7 @@ async def cast_vote(
         application_id: ID of application to vote on
         vote_request: Vote action and optional notes
         current_user: Currently authenticated board member
+        service: Board approval service instance
 
     Returns:
         Vote result with updated application status
@@ -316,8 +320,6 @@ async def cast_vote(
         500: If database error
     """
     try:
-        service = get_board_approval_service()
-
         result = service.cast_vote(
             application_id=application_id,
             board_member_id=current_user.id,
@@ -394,7 +396,8 @@ async def cast_vote(
 )
 async def get_vote_history(
     application_id: UUID,
-    current_user: User = Depends(require_board_member)
+    current_user: User = Depends(require_board_member),
+    service: BoardApprovalService = Depends(get_board_approval_service)
 ) -> VoteHistoryResponse:
     """
     Get complete vote history for an application.
@@ -405,12 +408,12 @@ async def get_vote_history(
     Args:
         application_id: ID of application
         current_user: Currently authenticated board member
+        service: Board approval service instance
 
     Returns:
         Vote history with all votes
     """
     try:
-        service = get_board_approval_service()
         votes = service.get_vote_history(application_id)
 
         logger.info(
@@ -462,7 +465,8 @@ async def get_vote_history(
     }
 )
 async def get_board_stats(
-    current_user: User = Depends(require_board_member)
+    current_user: User = Depends(require_board_member),
+    service: BoardApprovalService = Depends(get_board_approval_service)
 ) -> BoardStatsResponse:
     """
     Get voting statistics for the current board member.
@@ -475,12 +479,12 @@ async def get_board_stats(
 
     Args:
         current_user: Currently authenticated board member
+        service: Board approval service instance
 
     Returns:
         Voting statistics
     """
     try:
-        service = get_board_approval_service()
         stats = service.get_board_member_stats(current_user.id)
 
         logger.info(f"Board member {current_user.id} retrieved voting statistics")
